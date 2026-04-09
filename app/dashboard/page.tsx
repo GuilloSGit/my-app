@@ -42,7 +42,7 @@ function DashboardContent() {
   const [zoomData, setZoomData] = useState<Partial<ParsedZoomMeeting> | null>(null);
   
   const userIsAdmin = isAdmin(user);
-  const userName = user?.email?.split("@")[0] || "hermano";
+  const userName = "hermano";
 
   // Recargar reuniones
   const refreshMeetings = useCallback(() => {
