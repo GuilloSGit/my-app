@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Meeting, formatMeetingDate } from "@/lib/meetings";
+import { Meeting, formatMeetingDate, deleteMeeting } from "@/lib/meetings";
 import { CopyButton } from "./copy-button";
 import { WhatsAppShare } from "./whatsapp-share";
-import { Calendar, Clock, Video, Hash, Lock, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Video, Hash, Lock, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
 
 interface MeetingCardProps {
   meeting: Meeting;
+  isAdmin?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
-export function MeetingCard({ meeting }: MeetingCardProps) {
+export function MeetingCard({ meeting, isAdmin, onEdit, onDelete }: MeetingCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const formattedDate = formatMeetingDate(meeting.date);
 
@@ -43,7 +47,7 @@ export function MeetingCard({ meeting }: MeetingCardProps) {
         </div>
 
         {/* Quick Actions - Always visible */}
-        <div className="flex flex-wrap gap-3 mt-4">
+        <div className="flex flex-wrap gap-3 mt-4 items-center">
           <a
             href={meeting.zoomLink}
             target="_blank"
@@ -55,8 +59,80 @@ export function MeetingCard({ meeting }: MeetingCardProps) {
             Unirse a Zoom
           </a>
           <WhatsAppShare meeting={meeting} />
+          
+          {/* Admin Actions */}
+          {isAdmin && (
+            <div className="flex gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit?.();
+                }}
+                className="p-2 rounded-lg bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-500/20 transition-colors"
+                title="Editar"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteConfirm(true);
+                }}
+                className="p-2 rounded-lg bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/20 transition-colors"
+                title="Eliminar"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-zinc-900 rounded-xl p-6 max-w-sm w-full"
+            >
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">
+                ¿Eliminar reunión?
+              </h3>
+              <p className="text-slate-600 dark:text-zinc-400 mb-6">
+                Esta acción no se puede deshacer. ¿Estás seguro de eliminar "{meeting.title}"?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    deleteMeeting(meeting.id);
+                    setShowDeleteConfirm(false);
+                    onDelete?.();
+                  }}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Expanded Details */}
       <AnimatePresence>

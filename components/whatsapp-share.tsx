@@ -96,16 +96,16 @@ export function WhatsAppShare({ meeting, expanded = false }: WhatsAppShareProps)
 function generateDefaultMessage(meeting: Meeting): string {
   const date = formatMeetingDate(meeting.date);
   
-  return `¡Hola! 👋
+  return `¡Hola!
 
 Te comparto los datos para la reunión de la Congregación Media Agua:
 
-📅 *${meeting.title}*
-🕐 ${date}
+-> *${meeting.title}*
+-> ${date}
 
-🔗 Link: ${meeting.zoomLink}
-🆔 ID: ${meeting.zoomId}
-🔑 Contraseña: ${meeting.passcode}
+Link: ${meeting.zoomLink}
+ID: ${meeting.zoomId}
+Contraseña: ${meeting.passcode}
 
-¡Te esperamos! 🙏`;
+¡Te esperamos!`;
 }
