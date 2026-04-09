@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarLogo } from "./calendar-logo";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/lib/auth";
-import { LogOut, User, LogIn } from "lucide-react";
+import { LogOut, User, LogIn, ArrowRight, LayoutDashboard } from "lucide-react";
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -40,11 +40,7 @@ export function Navbar() {
             <div className="flex items-center gap-3">
               {user ? (
                 <div className="hidden sm:flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-sm text-slate-700 dark:text-zinc-300">
-                    <User className="w-4 h-4" />
-                    <span className="max-w-[150px] truncate">{user.email}</span>
-                  </div>
-                  {isDashboard && (
+                  {isDashboard ? (
                     <motion.button
                       onClick={handleLogout}
                       whileHover={{ scale: 1.05 }}
@@ -54,6 +50,17 @@ export function Navbar() {
                       <LogOut className="w-4 h-4" />
                       Salir
                     </motion.button>
+                  ) : (
+                    <motion.a
+                      href="/dashboard"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-media-agua hover:bg-media-agua-dark text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-media-agua"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      Ir a la app
+                      <ArrowRight className="w-4 h-4" />
+                    </motion.a>
                   )}
                 </div>
               ) : (

@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  distDir: 'dist',
+  // Uncomment for static export build:
+  // output: 'export',
+  // distDir: 'dist',
   images: {
     unoptimized: true,
   },
