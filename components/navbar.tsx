@@ -19,8 +19,16 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isDashboard = pathname === getPath("/dashboard") || pathname === "/dashboard";
-  const isLogin = pathname === getPath("/login") || pathname === "/login";
+  
+  // Normalize pathname (remove trailing slash for comparison)
+  const normalizedPath = pathname?.replace(/\/$/, '') || '';
+  const dashboardPath = getPath("/dashboard").replace(/\/$/, '');
+  const loginPath = getPath("/login").replace(/\/$/, '');
+  const landingPath = basePath || '/';
+  
+  const isDashboard = normalizedPath === dashboardPath || normalizedPath === "/dashboard";
+  const isLogin = normalizedPath === loginPath || normalizedPath === "/login";
+  const isLanding = normalizedPath === landingPath || normalizedPath === '' || normalizedPath === '/';
 
   const handleLogout = () => {
     logout();
@@ -49,17 +57,8 @@ export function Navbar() {
             <div className="flex items-center gap-3">
               {user ? (
                 <div className="hidden sm:flex items-center gap-3">
-                  {isDashboard ? (
-                    <motion.button
-                      onClick={handleLogout}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Salir
-                    </motion.button>
-                  ) : (
+                  {/* Show 'Ir a la app' ONLY on landing page */}
+                  {isLanding && (
                     <Link href={getPath("/dashboard")}>
                       <motion.span
                         whileHover={{ scale: 1.05 }}
@@ -72,8 +71,21 @@ export function Navbar() {
                       </motion.span>
                     </Link>
                   )}
+                  {/* Show 'Salir' on dashboard or other pages */}
+                  {!isLanding && (
+                    <motion.button
+                      onClick={handleLogout}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Salir
+                    </motion.button>
+                  )}
                 </div>
               ) : (
+                /* Not logged in: show login button (except on login page) */
                 !isLogin && (
                   <Link href={getPath("/login")}>
                     <motion.span
