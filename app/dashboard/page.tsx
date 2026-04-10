@@ -13,6 +13,7 @@ import { CsvImport } from "@/components/csv-import";
 import { ZoomImportDialog } from "@/components/zoom-import-dialog";
 import { ParsedZoomMeeting } from "@/lib/zoom-parser";
 import { CalendarDays, Plus, Upload, Shield, RefreshCw, MessageSquare } from "lucide-react";
+import { Tooltip } from "@/components/tooltip";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -215,7 +216,52 @@ function DashboardContent() {
           className="mt-12 p-4 bg-slate-50 dark:bg-zinc-900/30 rounded-xl border border-slate-200 dark:border-zinc-800"
         >
           <p className="text-sm text-slate-500 dark:text-zinc-400 text-center">
-            Las reuniones pasadas se eliminan automáticamente. Si necesitas los datos de una reunión anterior, contacta al administrador.
+            Las reuniones pasadas se eliminan automáticamente. Si necesitas los datos de una reunión anterior,{" "}
+            <Tooltip
+              content={
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold mb-1">Teléfono:</p>
+                    <a href="tel:+543876295801" className="hover:underline text-blue-400 dark:text-blue-300">
+                      +54 387 629 5801
+                    </a>
+                  </div>
+                  <div>
+                    <p className="font-semibold mb-1">WhatsApp:</p>
+                    <a
+                      href="https://wa.me/543876295801?text=Necesito%20datos%20de%20una%20reunión%20anterior"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline text-blue-400 dark:text-blue-300"
+                    >
+                      +54 387 629 5801
+                    </a>
+                  </div>
+                  <div>
+                    <p className="font-semibold mb-1">Email:</p>
+                    <a href="mailto:guillermoandrada@gmail.com" className="hover:underline text-blue-400 dark:text-blue-300">
+                      guillermoandrada@gmail.com
+                    </a>
+                  </div>
+                  <div>
+                    <p className="font-semibold mb-1">Sitio Web:</p>
+                    <a
+                      href="https://GA-Software.dev"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline text-blue-400 dark:text-blue-300"
+                    >
+                      GA-Software.dev
+                    </a>
+                  </div>
+                </div>
+              }
+            >
+              <span className="cursor-pointer border-b border-dotted border-slate-400 dark:border-zinc-600 hover:border-solid">
+                contacta al administrador
+              </span>
+            </Tooltip>
+            .
           </p>
         </motion.div>
       </div>
