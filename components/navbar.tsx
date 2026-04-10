@@ -1,17 +1,26 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CalendarLogo } from "./calendar-logo";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/lib/auth";
-import { LogOut, User, LogIn, ArrowRight, LayoutDashboard } from "lucide-react";
+import { LogOut, LogIn, ArrowRight, LayoutDashboard } from "lucide-react";
+
+// Get basePath for GitHub Pages
+const basePath = process.env.NODE_ENV === 'production' ? '/my-app' : '';
+
+function getPath(path: string): string {
+  return `${basePath}${path}`;
+}
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isDashboard = pathname === "/dashboard";
+  const isDashboard = pathname === getPath("/dashboard") || pathname === "/dashboard";
+  const isLogin = pathname === getPath("/login") || pathname === "/login";
 
   const handleLogout = () => {
     logout();
@@ -29,12 +38,12 @@ export function Navbar() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <a href="/" className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
               <CalendarLogo className="w-8 h-8" />
               <span className="font-semibold text-slate-900 dark:text-zinc-100">
                 Media Agua
               </span>
-            </a>
+            </Link>
 
             {/* Right side */}
             <div className="flex items-center gap-3">
@@ -51,28 +60,32 @@ export function Navbar() {
                       Salir
                     </motion.button>
                   ) : (
-                    <motion.a
-                      href="/dashboard"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-media-agua hover:bg-media-agua-dark text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-media-agua"
-                    >
-                      <LayoutDashboard className="w-4 h-4" />
-                      Ir a la app
-                      <ArrowRight className="w-4 h-4" />
-                    </motion.a>
+                    <Link href={getPath("/dashboard")}>
+                      <motion.span
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-media-agua hover:bg-media-agua-dark text-white rounded-lg transition-colors cursor-pointer"
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        Ir a la app
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.span>
+                    </Link>
                   )}
                 </div>
               ) : (
-                <motion.a
-                  href="/login"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-media-agua hover:bg-media-agua-dark text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-media-agua"
-                >
-                  <LogIn className="w-4 h-4" />
-                  Ingresar
-                </motion.a>
+                !isLogin && (
+                  <Link href={getPath("/login")}>
+                    <motion.span
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-media-agua hover:bg-media-agua-dark text-white rounded-lg transition-colors cursor-pointer"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Ingresar
+                    </motion.span>
+                  </Link>
+                )
               )}
               <ThemeToggle />
             </div>
