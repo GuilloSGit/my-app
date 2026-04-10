@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Meeting, formatMeetingDate, deleteMeeting } from "@/lib/meetings";
 import { CopyButton } from "./copy-button";
 import { WhatsAppShare } from "./whatsapp-share";
-import { Calendar, Video, Hash, Lock, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
+import { Calendar, Video, Hash, Lock, ChevronDown, ChevronUp, Pencil, Trash2, Loader2 } from "lucide-react";
 
 interface MeetingCardProps {
   meeting: Meeting;
@@ -17,7 +17,8 @@ interface MeetingCardProps {
 export function MeetingCard({ meeting, isAdmin, onEdit, onDelete }: MeetingCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const formattedDate = formatMeetingDate(meeting.date);
 
   return (
@@ -120,13 +121,23 @@ export function MeetingCard({ meeting, isAdmin, onEdit, onDelete }: MeetingCardP
                 </button>
                 <button
                   onClick={async () => {
+                    setIsDeleting(true);
                     await deleteMeeting(meeting.id);
+                    setIsDeleting(false);
                     setShowDeleteConfirm(false);
                     onDelete?.();
                   }}
-                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  Eliminar
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    "Eliminar"
+                  )}
                 </button>
               </div>
             </motion.div>
