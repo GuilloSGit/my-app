@@ -23,21 +23,12 @@ let config: GitHubDBConfig | null = null;
 
 // Inicializar configuración desde variables de entorno
 export function initGitHubDB(): void {
-  if (typeof window !== "undefined") {
-    // En el cliente, leer desde window.env (inyectado por Next.js)
-    config = {
-      owner: (window as any).NEXT_PUBLIC_GITHUB_OWNER || "",
-      repo: (window as any).NEXT_PUBLIC_GITHUB_REPO || "",
-      token: (window as any).NEXT_PUBLIC_GITHUB_TOKEN || "",
-    };
-  } else {
-    // En el servidor (build time)
-    config = {
-      owner: process.env.NEXT_PUBLIC_GITHUB_OWNER || "",
-      repo: process.env.NEXT_PUBLIC_GITHUB_REPO || "",
-      token: process.env.NEXT_PUBLIC_GITHUB_TOKEN || "",
-    };
-  }
+  // Next.js expone NEXT_PUBLIC_* tanto en servidor como cliente como process.env
+  config = {
+    owner: process.env.NEXT_PUBLIC_GITHUB_OWNER || "",
+    repo: process.env.NEXT_PUBLIC_GITHUB_REPO || "",
+    token: process.env.NEXT_PUBLIC_GITHUB_TOKEN || "",
+  };
 
   if (!config.owner || !config.repo || !config.token) {
     console.warn("GitHub DB no configurado. Usando localStorage como fallback.");

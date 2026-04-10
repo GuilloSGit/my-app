@@ -41,7 +41,7 @@ export function CsvImport({ onSuccess, onCancel }: CsvImportProps) {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
       setResult({ success: 0, errors: ["Solo se permiten archivos CSV o TXT"] });
       return;

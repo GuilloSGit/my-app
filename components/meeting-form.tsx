@@ -28,8 +28,20 @@ export function MeetingForm({ meeting, zoomData, onSave, onCancel }: MeetingForm
       };
     }
     if (zoomData) {
+      // Si la fecha ya tiene offset, usarla directamente. Si no, convertir a ISO
+      let dateStr = "";
+      if (zoomData.date) {
+        if (zoomData.date.includes("+") || zoomData.date.includes("-")) {
+          // Ya tiene offset, usar directamente (quitar el offset para datetime-local pero mantener segundos)
+          const match = zoomData.date.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/);
+          dateStr = match ? match[1] : zoomData.date.slice(0, 19);
+        } else {
+          // Sin offset, convertir a ISO local
+          dateStr = new Date(zoomData.date).toISOString().slice(0, 16);
+        }
+      }
       return {
-        date: zoomData.date ? new Date(zoomData.date).toISOString().slice(0, 16) : "",
+        date: dateStr,
         title: zoomData.title || "",
         zoomLink: zoomData.zoomLink || "",
         zoomId: zoomData.zoomId || "",
@@ -70,9 +82,22 @@ export function MeetingForm({ meeting, zoomData, onSave, onCancel }: MeetingForm
     setIsSaving(true);
     
     try {
+      // Convertir fecha a ISO con offset de Buenos Aires
+      let dateToSave: string;
+      if (formData.date.includes("+") || formData.date.includes("-")) {
+        // Ya tiene offset, agregar offset de Buenos Aires si no lo tiene
+        dateToSave = formData.date.includes("+") || formData.date.match(/-\d{2}:\d{2}$/)
+          ? formData.date
+          : formData.date + "-03:00";
+      } else {
+        // Sin offset, convertir a ISO local y agregar offset de Buenos Aires
+        const localDate = new Date(formData.date);
+        dateToSave = localDate.toISOString().slice(0, 19) + "-03:00";
+      }
+
       if (isEditing && meeting) {
         await updateMeeting(meeting.id, {
-          date: new Date(formData.date).toISOString(),
+          date: dateToSave,
           title: formData.title,
           zoomLink: formData.zoomLink,
           zoomId: formData.zoomId,
@@ -80,7 +105,7 @@ export function MeetingForm({ meeting, zoomData, onSave, onCancel }: MeetingForm
         });
       } else {
         await createMeeting({
-          date: new Date(formData.date).toISOString(),
+          date: dateToSave,
           title: formData.title,
           zoomLink: formData.zoomLink,
           zoomId: formData.zoomId,

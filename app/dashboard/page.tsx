@@ -61,10 +61,10 @@ function DashboardContent() {
     setShowForm(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setShowForm(false);
     setEditingMeeting(null);
-    refreshMeetings();
+    await refreshMeetings();
   };
 
   const handleImportSuccess = () => {
