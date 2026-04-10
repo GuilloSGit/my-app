@@ -59,7 +59,7 @@ export function Navbar() {
                 <div className="hidden sm:flex items-center gap-3">
                   {/* Show 'Ir a la app' ONLY on landing page */}
                   {isLanding && (
-                    <Link href={getPath("/dashboard")}>
+                    <Link href="/dashboard">
                       <motion.span
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -87,7 +87,7 @@ export function Navbar() {
               ) : (
                 /* Not logged in: show login button (except on login page) */
                 !isLogin && (
-                  <Link href={getPath("/login")}>
+                  <Link href="/login">
                     <motion.span
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
