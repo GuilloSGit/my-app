@@ -34,6 +34,9 @@ jobs:
         env:
           NEXT_PUBLIC_AUTHORIZED_EMAILS: ${{ secrets.NEXT_PUBLIC_AUTHORIZED_EMAILS }}
           NEXT_PUBLIC_ADMIN_EMAIL: ${{ secrets.NEXT_PUBLIC_ADMIN_EMAIL }}
+          NEXT_PUBLIC_GITHUB_TOKEN: ${{ secrets.NEXT_PUBLIC_GITHUB_TOKEN }}
+          NEXT_PUBLIC_GITHUB_OWNER: ${{ secrets.NEXT_PUBLIC_GITHUB_OWNER }}
+          NEXT_PUBLIC_GITHUB_REPO: ${{ secrets.NEXT_PUBLIC_GITHUB_REPO }}
         run: npm run build
 
       - name: Setup Pages
