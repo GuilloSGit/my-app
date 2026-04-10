@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Meeting, createMeeting, updateMeeting, validateMeeting } from "@/lib/meetings";
 import { ParsedZoomMeeting } from "@/lib/zoom-parser";
-import { Calendar, Video, Hash, Lock, FileText, X, Save, AlertCircle } from "lucide-react";
+import { Calendar, Video, Hash, Lock, FileText, X, Save, AlertCircle, Loader2 } from "lucide-react";
 
 interface MeetingFormProps {
   meeting?: Meeting;
@@ -256,8 +256,17 @@ export function MeetingForm({ meeting, zoomData, onSave, onCancel }: MeetingForm
                 disabled={isSaving}
                 className="flex-1 px-4 py-2.5 bg-media-agua text-white rounded-lg hover:bg-media-agua-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
-                {isSaving ? "Guardando..." : (isEditing ? "Guardar" : "Crear")}
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    {isEditing ? "Guardar" : "Crear"}
+                  </>
+                )}
               </button>
             </div>
           </form>
