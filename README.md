@@ -12,6 +12,7 @@ Plataforma web con acceso restringido que permite visualizar y compartir los enl
 - **Autenticación Segura**: Sistema de "Allowed List" basado en correos electrónicos autorizados
 - **Dashboard Protegido**: Lista de reuniones ordenadas por fecha (más próximas primero)
 - **Compartir por WhatsApp**: Funcionalidad para compartir detalles de reuniones fácilmente
+- **Persistencia de Datos**: Opción de usar GitHub Issues API como base de datos (ideal para GitHub Pages)
 - **Responsive**: Diseño optimizado para móviles
 
 ## Tech Stack
@@ -43,13 +44,38 @@ npm install
 
 3. Configurar variables de entorno:
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
 Editar `.env.local` con tus configuraciones:
 ```env
-AUTHORIZED_EMAILS=email1@ejemplo.com,email2@ejemplo.com
+NEXT_PUBLIC_AUTHORIZED_EMAILS=email1@ejemplo.com,email2@ejemplo.com
+NEXT_PUBLIC_ADMIN_EMAIL=admin@ejemplo.com
 ```
+
+### Configuración de Persistencia de Datos (Opcional)
+
+Por defecto, la aplicación usa `localStorage` para guardar las reuniones (solo funciona en el navegador del usuario). Para habilitar persistencia real entre dispositivos y usuarios, configura GitHub DB:
+
+1. **Crear un Personal Access Token en GitHub**:
+   - Ve a https://github.com/settings/tokens
+   - Click en "Generate new token (classic)"
+   - Selecciona el scope `repo` (necesario para leer/escribir issues)
+   - Genera el token y cópialo
+
+2. **Configurar las variables de entorno**:
+```env
+NEXT_PUBLIC_GITHUB_OWNER=tu-usuario-github
+NEXT_PUBLIC_GITHUB_REPO=nombre-del-repositorio
+NEXT_PUBLIC_GITHUB_TOKEN=ghp_tu-token-aqui
+```
+
+3. **Para GitHub Actions/Deploy**:
+   - Agrega las mismas variables como secrets en:
+   - Settings > Secrets and variables > Actions > Repository secrets
+   - Los nombres deben ser: `NEXT_PUBLIC_GITHUB_OWNER`, `NEXT_PUBLIC_GITHUB_REPO`, `NEXT_PUBLIC_GITHUB_TOKEN`
+
+**Nota**: Si no configuras estas variables, la app funcionará normalmente con localStorage (sin persistencia entre dispositivos).
 
 ## Desarrollo
 
@@ -75,10 +101,16 @@ npm start
 
 ## Deploy
 
-Esta aplicación está configurada para deploy en [Vercel](https://vercel.com/).
+Esta aplicación está configurada para deploy en [GitHub Pages](https://pages.github.com/) (ver workflow en `.github/workflows/deploy.yml`).
 
-Variables de entorno requeridas en Vercel:
-- `AUTHORIZED_EMAILS`: Lista de correos autorizados separados por comas
+Variables de entorno requeridas:
+- `NEXT_PUBLIC_AUTHORIZED_EMAILS`: Lista de correos autorizados separados por comas
+- `NEXT_PUBLIC_ADMIN_EMAIL`: Email del administrador con permisos de edición
+
+Opcionales (para persistencia de datos):
+- `NEXT_PUBLIC_GITHUB_OWNER`: Tu usuario de GitHub
+- `NEXT_PUBLIC_GITHUB_REPO`: Nombre del repositorio
+- `NEXT_PUBLIC_GITHUB_TOKEN`: Personal Access Token con permisos `repo`
 
 ## Estructura del Proyecto
 

@@ -53,7 +53,7 @@ export function CsvImport({ onSuccess, onCancel }: CsvImportProps) {
     Papa.parse<CsvRow>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: async (results) => {
         const errors: string[] = [];
         const validMeetings: Omit<Meeting, "id">[] = [];
 
@@ -124,7 +124,7 @@ export function CsvImport({ onSuccess, onCancel }: CsvImportProps) {
         });
 
         if (validMeetings.length > 0) {
-          importMeetings(validMeetings);
+          await importMeetings(validMeetings);
         }
 
         setResult({

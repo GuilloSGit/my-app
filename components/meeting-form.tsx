@@ -71,7 +71,7 @@ export function MeetingForm({ meeting, zoomData, onSave, onCancel }: MeetingForm
     
     try {
       if (isEditing && meeting) {
-        updateMeeting(meeting.id, {
+        await updateMeeting(meeting.id, {
           date: new Date(formData.date).toISOString(),
           title: formData.title,
           zoomLink: formData.zoomLink,
@@ -79,7 +79,7 @@ export function MeetingForm({ meeting, zoomData, onSave, onCancel }: MeetingForm
           passcode: formData.passcode,
         });
       } else {
-        createMeeting({
+        await createMeeting({
           date: new Date(formData.date).toISOString(),
           title: formData.title,
           zoomLink: formData.zoomLink,

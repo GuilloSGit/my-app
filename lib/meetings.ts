@@ -1,3 +1,5 @@
+import { githubDB } from "./github-db";
+
 export interface Meeting {
   id: string;
   date: string; // ISO date string
@@ -29,8 +31,28 @@ const defaultMeetings: Meeting[] = [
   },
 ];
 
-// Obtener reuniones del localStorage o usar defaults
-function getStoredMeetings(): Meeting[] {
+// Inicializar GitHub DB
+githubDB.init();
+
+// Obtener reuniones del GitHub DB o localStorage (fallback)
+async function getStoredMeetings(): Promise<Meeting[]> {
+  // Intentar usar GitHub DB primero
+  if (githubDB.isConfigured()) {
+    try {
+      const data = await githubDB.get(MEETINGS_STORAGE_KEY, "meetings");
+      if (data && Array.isArray(data)) {
+        // Sincronizar con localStorage como backup
+        if (typeof window !== "undefined") {
+          localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(data));
+        }
+        return data;
+      }
+    } catch (error) {
+      console.warn("GitHub DB error, using localStorage fallback:", error);
+    }
+  }
+
+  // Fallback a localStorage
   if (typeof window === "undefined") return defaultMeetings;
   
   const stored = localStorage.getItem(MEETINGS_STORAGE_KEY);
@@ -46,10 +68,21 @@ function getStoredMeetings(): Meeting[] {
   return defaultMeetings;
 }
 
-// Guardar reuniones en localStorage
-function saveMeetings(meetings: Meeting[]): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(meetings));
+// Guardar reuniones en GitHub DB y localStorage
+async function saveMeetings(meetings: Meeting[]): Promise<void> {
+  // Guardar en GitHub DB si está configurado
+  if (githubDB.isConfigured()) {
+    try {
+      await githubDB.set(MEETINGS_STORAGE_KEY, meetings, "meetings");
+    } catch (error) {
+      console.warn("Error saving to GitHub DB:", error);
+    }
+  }
+
+  // Siempre guardar en localStorage como backup
+  if (typeof window !== "undefined") {
+    localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(meetings));
+  }
 }
 
 // Generar ID único
@@ -58,60 +91,60 @@ function generateId(): string {
 }
 
 // CRUD Operations
-export function getUpcomingMeetings(): Meeting[] {
-  const meetings = getStoredMeetings();
+export async function getUpcomingMeetings(): Promise<Meeting[]> {
+  const meetings = await getStoredMeetings();
   const now = new Date();
   
   return meetings
-    .filter(meeting => new Date(meeting.date) > now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .filter((meeting: Meeting) => new Date(meeting.date) > now)
+    .sort((a: Meeting, b: Meeting) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-export function getAllMeetings(): Meeting[] {
-  const meetings = getStoredMeetings();
-  return meetings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+export async function getAllMeetings(): Promise<Meeting[]> {
+  const meetings = await getStoredMeetings();
+  return meetings.sort((a: Meeting, b: Meeting) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-export function getMeetingById(id: string): Meeting | undefined {
-  const meetings = getStoredMeetings();
-  return meetings.find(m => m.id === id);
+export async function getMeetingById(id: string): Promise<Meeting | undefined> {
+  const meetings = await getStoredMeetings();
+  return meetings.find((m: Meeting) => m.id === id);
 }
 
-export function createMeeting(meeting: Omit<Meeting, "id">): Meeting {
-  const meetings = getStoredMeetings();
+export async function createMeeting(meeting: Omit<Meeting, "id">): Promise<Meeting> {
+  const meetings = await getStoredMeetings();
   const newMeeting: Meeting = {
     ...meeting,
     id: generateId(),
   };
   meetings.push(newMeeting);
-  saveMeetings(meetings);
+  await saveMeetings(meetings);
   return newMeeting;
 }
 
-export function updateMeeting(id: string, updates: Partial<Omit<Meeting, "id">>): Meeting | null {
-  const meetings = getStoredMeetings();
-  const index = meetings.findIndex(m => m.id === id);
+export async function updateMeeting(id: string, updates: Partial<Omit<Meeting, "id">>): Promise<Meeting | null> {
+  const meetings = await getStoredMeetings();
+  const index = meetings.findIndex((m: Meeting) => m.id === id);
   
   if (index === -1) return null;
   
   meetings[index] = { ...meetings[index], ...updates };
-  saveMeetings(meetings);
+  await saveMeetings(meetings);
   return meetings[index];
 }
 
-export function deleteMeeting(id: string): boolean {
-  const meetings = getStoredMeetings();
-  const filtered = meetings.filter(m => m.id !== id);
+export async function deleteMeeting(id: string): Promise<boolean> {
+  const meetings = await getStoredMeetings();
+  const filtered = meetings.filter((m: Meeting) => m.id !== id);
   
   if (filtered.length === meetings.length) return false;
   
-  saveMeetings(filtered);
+  await saveMeetings(filtered);
   return true;
 }
 
 // Importar múltiples reuniones (para CSV/Excel)
-export function importMeetings(newMeetings: Omit<Meeting, "id">[]): Meeting[] {
-  const meetings = getStoredMeetings();
+export async function importMeetings(newMeetings: Omit<Meeting, "id">[]): Promise<Meeting[]> {
+  const meetings = await getStoredMeetings();
   const created: Meeting[] = [];
   
   for (const meeting of newMeetings) {
@@ -123,19 +156,19 @@ export function importMeetings(newMeetings: Omit<Meeting, "id">[]): Meeting[] {
     created.push(newMeeting);
   }
   
-  saveMeetings(meetings);
+  await saveMeetings(meetings);
   return created;
 }
 
 // Limpiar reuniones pasadas
-export function cleanPastMeetings(): number {
-  const meetings = getStoredMeetings();
+export async function cleanPastMeetings(): Promise<number> {
+  const meetings = await getStoredMeetings();
   const now = new Date();
-  const upcoming = meetings.filter(m => new Date(m.date) > now);
+  const upcoming = meetings.filter((m: Meeting) => new Date(m.date) > now);
   const removed = meetings.length - upcoming.length;
   
   if (removed > 0) {
-    saveMeetings(upcoming);
+    await saveMeetings(upcoming);
   }
   
   return removed;

@@ -119,8 +119,8 @@ export function MeetingCard({ meeting, isAdmin, onEdit, onDelete }: MeetingCardP
                   Cancelar
                 </button>
                 <button
-                  onClick={() => {
-                    deleteMeeting(meeting.id);
+                  onClick={async () => {
+                    await deleteMeeting(meeting.id);
                     setShowDeleteConfirm(false);
                     onDelete?.();
                   }}

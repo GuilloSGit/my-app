@@ -45,8 +45,9 @@ function DashboardContent() {
   const userName = "hermano";
 
   // Recargar reuniones
-  const refreshMeetings = useCallback(() => {
-    setMeetings(getUpcomingMeetings());
+  const refreshMeetings = useCallback(async () => {
+    const meetings = await getUpcomingMeetings();
+    setMeetings(meetings);
     setRefreshKey(prev => prev + 1);
   }, []);
 
