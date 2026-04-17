@@ -6,7 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarLogo } from "./calendar-logo";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/lib/auth";
-import { LogOut, LogIn, ArrowRight, LayoutDashboard } from "lucide-react";
+import { LogOut, LogIn, ArrowRight, LayoutDashboard, Menu, X } from "lucide-react";
+import { useState } from "react";
 
 // Get basePath for GitHub Pages
 const basePath = process.env.NODE_ENV === 'production' ? '/my-app' : '';
@@ -19,6 +20,7 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Normalize pathname (remove trailing slash for comparison)
   const normalizedPath = pathname?.replace(/\/$/, '') || '';
@@ -55,6 +57,14 @@ export function Navbar() {
 
             {/* Right side */}
             <div className="flex items-center gap-3">
+              {/* Mobile menu button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="sm:hidden p-2 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+
               {user ? (
                 <div className="hidden sm:flex items-center gap-3">
                   {/* Show 'Ir a la app' ONLY on landing page */}
@@ -102,6 +112,52 @@ export function Navbar() {
               <ThemeToggle />
             </div>
           </div>
+
+          {/* Mobile menu */}
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="sm:hidden border-t border-slate-200/50 dark:border-zinc-800/50 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md"
+            >
+              <div className="px-4 py-4 space-y-3">
+                {user ? (
+                  <>
+                    {isLanding && (
+                      <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                        <span className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-media-agua text-white rounded-lg">
+                          <LayoutDashboard className="w-4 h-4" />
+                          Ir a la app
+                        </span>
+                      </Link>
+                    )}
+                    {!isLanding && (
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 w-full"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Salir
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  !isLogin && (
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                      <span className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-media-agua text-white rounded-lg">
+                        <LogIn className="w-4 h-4" />
+                        Ingresar
+                      </span>
+                    </Link>
+                  )
+                )}
+              </div>
+            </motion.div>
+          )}
         </div>
       </nav>
     </motion.header>
