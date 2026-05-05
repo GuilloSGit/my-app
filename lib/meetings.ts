@@ -94,9 +94,11 @@ function generateId(): string {
 export async function getUpcomingMeetings(): Promise<Meeting[]> {
   const meetings = await getStoredMeetings();
   const now = new Date();
+  // Margen de 2 horas: la reunión permanece visible 2h después de iniciar
+  const cutoffTime = new Date(now.getTime() - 2 * 60 * 60 * 1000);
   
   return meetings
-    .filter((meeting: Meeting) => new Date(meeting.date) > now)
+    .filter((meeting: Meeting) => new Date(meeting.date) > cutoffTime)
     .sort((a: Meeting, b: Meeting) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
@@ -160,11 +162,13 @@ export async function importMeetings(newMeetings: Omit<Meeting, "id">[]): Promis
   return created;
 }
 
-// Limpiar reuniones pasadas
+// Limpiar reuniones pasadas (con margen de 2 horas)
 export async function cleanPastMeetings(): Promise<number> {
   const meetings = await getStoredMeetings();
   const now = new Date();
-  const upcoming = meetings.filter((m: Meeting) => new Date(m.date) > now);
+  // Margen de 2 horas: la reunión se elimina solo 2h después de iniciar
+  const cutoffTime = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  const upcoming = meetings.filter((m: Meeting) => new Date(m.date) > cutoffTime);
   const removed = meetings.length - upcoming.length;
   
   if (removed > 0) {
