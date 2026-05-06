@@ -47,6 +47,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Media Agua",
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   openGraph: {
     title: "Congregación Media Agua - Links de Reunión",
     description: "Accede fácilmente a los enlaces de Zoom para las reuniones de la congregación.",

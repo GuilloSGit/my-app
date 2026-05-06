@@ -23,4 +23,8 @@
   .text-balance {
     text-wrap: balance;
   }
+  
+  .pt-nav {
+    padding-top: 4rem; /* 64px - matches navbar height */
+  }
 }
