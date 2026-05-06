@@ -1,6 +1,8 @@
 import { AuthUser } from "./auth";
 
-const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+// GitHub Pages doesn't properly expose NEXT_PUBLIC_* variables in runtime
+// Fallback to hardcoded values for production
+const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "guillermoandrada@gmail.com,pelayesthiago2@gmail.com,congregacionmediaagua7146@gmail.com";
 
 export function isAdmin(user: AuthUser | null): boolean {
   if (!user?.email || !ADMIN_EMAILS) return false;
