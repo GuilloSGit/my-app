@@ -1,4 +1,4 @@
-import { githubDB } from "./github-db";
+import { supabase } from "./supabase";
 
 export interface Meeting {
   id: string;
@@ -9,173 +9,141 @@ export interface Meeting {
   passcode: string;
 }
 
-const MEETINGS_STORAGE_KEY = "media-agua-meetings";
-
-// Datos iniciales de ejemplo
-const defaultMeetings: Meeting[] = [
-  {
-    id: "1",
-    date: "2026-04-12T19:00:00",
-    title: "Reunión General",
-    zoomLink: "https://zoom.us/j/example123",
-    zoomId: "123 456 7890",
-    passcode: "mediaagua",
-  },
-  {
-    id: "2",
-    date: "2026-04-19T19:00:00",
-    title: "Estudio Bíblico",
-    zoomLink: "https://zoom.us/j/example456",
-    zoomId: "987 654 3210",
-    passcode: "congregacion",
-  },
-];
-
-// Inicializar GitHub DB
-githubDB.init();
-
-// Obtener reuniones del GitHub DB o localStorage (fallback)
-async function getStoredMeetings(): Promise<Meeting[]> {
-  // Intentar usar GitHub DB primero
-  if (githubDB.isConfigured()) {
-    try {
-      const data = await githubDB.get(MEETINGS_STORAGE_KEY, "meetings");
-      if (data && Array.isArray(data)) {
-        // Sincronizar con localStorage como backup
-        if (typeof window !== "undefined") {
-          localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(data));
-        }
-        return data;
-      }
-    } catch (error) {
-      console.warn("GitHub DB error, using localStorage fallback:", error);
-    }
-  }
-
-  // Fallback a localStorage
-  if (typeof window === "undefined") return defaultMeetings;
-  
-  const stored = localStorage.getItem(MEETINGS_STORAGE_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return defaultMeetings;
-    }
-  }
-  // Inicializar con defaults si no hay nada guardado
-  localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(defaultMeetings));
-  return defaultMeetings;
+interface MeetingRow {
+  id: string;
+  title: string;
+  date: string;
+  zoom_link: string;
+  zoom_id: string;
+  passcode: string;
 }
 
-// Guardar reuniones en GitHub DB y localStorage
-async function saveMeetings(meetings: Meeting[]): Promise<void> {
-  // Guardar en GitHub DB si está configurado
-  if (githubDB.isConfigured()) {
-    try {
-      await githubDB.set(MEETINGS_STORAGE_KEY, meetings, "meetings");
-    } catch (error) {
-      console.warn("Error saving to GitHub DB:", error);
-    }
-  }
-
-  // Siempre guardar en localStorage como backup
-  if (typeof window !== "undefined") {
-    localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(meetings));
-  }
+function rowToMeeting(row: MeetingRow): Meeting {
+  return {
+    id: row.id,
+    title: row.title,
+    date: row.date,
+    zoomLink: row.zoom_link,
+    zoomId: row.zoom_id,
+    passcode: row.passcode,
+  };
 }
 
-// Generar ID único
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-// CRUD Operations
 export async function getUpcomingMeetings(): Promise<Meeting[]> {
-  const meetings = await getStoredMeetings();
-  const now = new Date();
-  // Margen de 2 horas: la reunión permanece visible 2h después de iniciar
-  const cutoffTime = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  
-  return meetings
-    .filter((meeting: Meeting) => new Date(meeting.date) > cutoffTime)
-    .sort((a: Meeting, b: Meeting) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("meetings")
+    .select("*")
+    .gte("date", cutoff)
+    .order("date", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return (data as MeetingRow[]).map(rowToMeeting);
 }
 
 export async function getAllMeetings(): Promise<Meeting[]> {
-  const meetings = await getStoredMeetings();
-  return meetings.sort((a: Meeting, b: Meeting) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const { data, error } = await supabase
+    .from("meetings")
+    .select("*")
+    .order("date", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return (data as MeetingRow[]).map(rowToMeeting);
 }
 
 export async function getMeetingById(id: string): Promise<Meeting | undefined> {
-  const meetings = await getStoredMeetings();
-  return meetings.find((m: Meeting) => m.id === id);
+  const { data, error } = await supabase
+    .from("meetings")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) return undefined;
+  return rowToMeeting(data as MeetingRow);
 }
 
 export async function createMeeting(meeting: Omit<Meeting, "id">): Promise<Meeting> {
-  const meetings = await getStoredMeetings();
-  const newMeeting: Meeting = {
-    ...meeting,
+  const row = {
     id: generateId(),
+    title: meeting.title,
+    date: meeting.date,
+    zoom_link: meeting.zoomLink,
+    zoom_id: meeting.zoomId,
+    passcode: meeting.passcode,
   };
-  meetings.push(newMeeting);
-  await saveMeetings(meetings);
-  return newMeeting;
+
+  const { data, error } = await supabase
+    .from("meetings")
+    .insert(row)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return rowToMeeting(data as MeetingRow);
 }
 
-export async function updateMeeting(id: string, updates: Partial<Omit<Meeting, "id">>): Promise<Meeting | null> {
-  const meetings = await getStoredMeetings();
-  const index = meetings.findIndex((m: Meeting) => m.id === id);
-  
-  if (index === -1) return null;
-  
-  meetings[index] = { ...meetings[index], ...updates };
-  await saveMeetings(meetings);
-  return meetings[index];
+export async function updateMeeting(
+  id: string,
+  updates: Partial<Omit<Meeting, "id">>
+): Promise<Meeting | null> {
+  const row: Partial<MeetingRow> = {};
+  if (updates.title !== undefined) row.title = updates.title;
+  if (updates.date !== undefined) row.date = updates.date;
+  if (updates.zoomLink !== undefined) row.zoom_link = updates.zoomLink;
+  if (updates.zoomId !== undefined) row.zoom_id = updates.zoomId;
+  if (updates.passcode !== undefined) row.passcode = updates.passcode;
+
+  const { data, error } = await supabase
+    .from("meetings")
+    .update(row)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return null;
+  return rowToMeeting(data as MeetingRow);
 }
 
 export async function deleteMeeting(id: string): Promise<boolean> {
-  const meetings = await getStoredMeetings();
-  const filtered = meetings.filter((m: Meeting) => m.id !== id);
-  
-  if (filtered.length === meetings.length) return false;
-  
-  await saveMeetings(filtered);
-  return true;
+  const { error } = await supabase.from("meetings").delete().eq("id", id);
+  return !error;
 }
 
-// Importar múltiples reuniones (para CSV/Excel)
-export async function importMeetings(newMeetings: Omit<Meeting, "id">[]): Promise<Meeting[]> {
-  const meetings = await getStoredMeetings();
-  const created: Meeting[] = [];
-  
-  for (const meeting of newMeetings) {
-    const newMeeting: Meeting = {
-      ...meeting,
-      id: generateId(),
-    };
-    meetings.push(newMeeting);
-    created.push(newMeeting);
-  }
-  
-  await saveMeetings(meetings);
-  return created;
+export async function importMeetings(
+  newMeetings: Omit<Meeting, "id">[]
+): Promise<Meeting[]> {
+  const rows = newMeetings.map((m) => ({
+    id: generateId(),
+    title: m.title,
+    date: m.date,
+    zoom_link: m.zoomLink,
+    zoom_id: m.zoomId,
+    passcode: m.passcode,
+  }));
+
+  const { data, error } = await supabase
+    .from("meetings")
+    .insert(rows)
+    .select();
+
+  if (error) throw new Error(error.message);
+  return (data as MeetingRow[]).map(rowToMeeting);
 }
 
-// Limpiar reuniones pasadas (con margen de 2 horas)
 export async function cleanPastMeetings(): Promise<number> {
-  const meetings = await getStoredMeetings();
-  const now = new Date();
-  // Margen de 2 horas: la reunión se elimina solo 2h después de iniciar
-  const cutoffTime = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  const upcoming = meetings.filter((m: Meeting) => new Date(m.date) > cutoffTime);
-  const removed = meetings.length - upcoming.length;
-  
-  if (removed > 0) {
-    await saveMeetings(upcoming);
-  }
-  
-  return removed;
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("meetings")
+    .delete()
+    .lt("date", cutoff)
+    .select();
+
+  if (error) return 0;
+  return data?.length ?? 0;
 }
 
 export function formatMeetingDate(dateString: string): string {
@@ -198,16 +166,15 @@ export function formatMeetingTime(dateString: string): string {
   }).format(date);
 }
 
-// Validar datos de reunión
 export function validateMeeting(meeting: Partial<Meeting>): string | null {
   if (!meeting.date) return "La fecha es requerida";
   if (!meeting.title?.trim()) return "El título es requerido";
   if (!meeting.zoomLink?.trim()) return "El link de Zoom es requerido";
   if (!meeting.zoomId?.trim()) return "El ID de reunión es requerido";
   if (!meeting.passcode?.trim()) return "La contraseña es requerida";
-  
+
   const date = new Date(meeting.date);
   if (isNaN(date.getTime())) return "Fecha inválida";
-  
+
   return null;
 }

@@ -1,147 +1,198 @@
-# Zoom Links - Congregación Media Agua
+# Congregación Media Agua — Reuniones
 
-Aplicación web minimalista y segura para gestionar las reuniones por Zoom de la Congregación Media Agua.
-
-## Descripción
-
-Plataforma web con acceso restringido que permite visualizar y compartir los enlaces de Zoom para las reuniones de la congregación. Incluye una landing page pública y un dashboard protegido para miembros autorizados.
+Plataforma web para gestionar y compartir los enlaces de Zoom de las reuniones de la Congregación Media Agua. Acceso restringido a miembros autorizados, con panel de administración para gestionar reuniones.
 
 ## Características
 
-- **Landing Page Pública**: Diseño profesional con información de contacto
-- **Autenticación Segura**: Sistema de "Allowed List" basado en correos electrónicos autorizados
-- **Dashboard Protegido**: Lista de reuniones ordenadas por fecha (más próximas primero)
-- **Compartir por WhatsApp**: Funcionalidad para compartir detalles de reuniones fácilmente
-- **Persistencia de Datos**: Opción de usar GitHub Issues API como base de datos (ideal para GitHub Pages)
-- **Responsive**: Diseño optimizado para móviles
+- **Autenticación por Magic Link**: los miembros autorizados ingresan con su correo y reciben un enlace seguro por email — sin contraseñas
+- **Dashboard protegido**: lista de próximas reuniones ordenadas por fecha
+- **Panel de administración**: crear, editar y eliminar reuniones (solo admins)
+- **Importar desde Zoom**: pegar la invitación de Zoom para extraer datos automáticamente
+- **Importar CSV**: carga masiva de reuniones desde planilla
+- **Compartir por WhatsApp**: enviar detalles de reunión con un clic
+- **PWA**: instalable en móviles, funciona como app nativa
+- **Tema claro/oscuro**
 
-## Tech Stack
+## Stack
 
-- **Framework**: [Next.js 14](https://nextjs.org/) (App Router)
-- **Estilos**: [Tailwind CSS](https://tailwindcss.com/)
-- **UI Components**: [shadcn/ui](https://ui.shadcn.com/)
-- **Iconos**: [Lucide React](https://lucide.dev/)
-- **Animaciones**: [Framer Motion](https://www.framer.com/motion/)
-- **Lenguaje**: TypeScript
+| Capa | Tecnología |
+|---|---|
+| Framework | Next.js 14 (App Router, static export) |
+| Estilos | Tailwind CSS |
+| Animaciones | Framer Motion |
+| Autenticación | Supabase Auth (OTP magic link) |
+| Base de datos | Supabase (PostgreSQL + RLS) |
+| Deploy | GitHub Pages / Vercel |
+| Tests | Vitest |
 
-## Requisitos Previos
+## Requisitos
 
 - Node.js 18+
-- npm o pnpm
+- Cuenta en [Supabase](https://supabase.com) (gratis)
 
-## Instalación
+## Configuración inicial
 
-1. Clonar el repositorio:
+### 1. Clonar e instalar
+
 ```bash
 git clone <url-del-repositorio>
-cd Zoom-link/my-app
-```
-
-2. Instalar dependencias:
-```bash
+cd my-app
 npm install
 ```
 
-3. Configurar variables de entorno:
+### 2. Crear proyecto en Supabase
+
+1. Crear proyecto en [supabase.com](https://supabase.com)
+2. En **SQL Editor**, ejecutar:
+
+```sql
+create table meetings (
+  id text primary key,
+  title text not null,
+  date timestamptz not null,
+  zoom_link text not null,
+  zoom_id text not null,
+  passcode text not null,
+  created_at timestamptz default now()
+);
+
+alter table meetings enable row level security;
+
+create policy "lectura autenticados" on meetings
+  for select using (auth.role() = 'authenticated');
+
+create policy "escritura autenticados" on meetings
+  for insert with check (auth.role() = 'authenticated');
+
+create policy "update autenticados" on meetings
+  for update using (auth.role() = 'authenticated');
+
+create policy "delete autenticados" on meetings
+  for delete using (auth.role() = 'authenticated');
+```
+
+3. En **Auth → Settings**:
+   - **Site URL**: `https://tu-usuario.github.io/my-app` (o tu dominio)
+   - **Redirect URLs**: agregar `http://localhost:3000/**` y `https://tu-usuario.github.io/my-app/**`
+
+### 3. Variables de entorno
+
 ```bash
 cp .env.example .env.local
 ```
 
-Editar `.env.local` con tus configuraciones:
+Completar `.env.local`:
+
 ```env
-NEXT_PUBLIC_AUTHORIZED_EMAILS=email1@ejemplo.com,email2@ejemplo.com
-NEXT_PUBLIC_ADMIN_EMAIL=admin@ejemplo.com
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+
+NEXT_PUBLIC_AUTHORIZED_EMAILS=email1@gmail.com,email2@gmail.com
+NEXT_PUBLIC_ADMIN_EMAIL=admin@gmail.com
 ```
 
-### Configuración de Persistencia de Datos (Opcional)
+> La `anon key` es pública por diseño — Supabase la expone en la documentación del proyecto. Las políticas RLS controlan el acceso real a los datos.
 
-Por defecto, la aplicación usa `localStorage` para guardar las reuniones (solo funciona en el navegador del usuario). Para habilitar persistencia real entre dispositivos y usuarios, configura GitHub DB:
-
-1. **Crear un Personal Access Token en GitHub**:
-   - Ve a https://github.com/settings/tokens
-   - Click en "Generate new token (classic)"
-   - Selecciona el scope `repo` (necesario para leer/escribir issues)
-   - Genera el token y cópialo
-
-2. **Configurar las variables de entorno**:
-```env
-NEXT_PUBLIC_GITHUB_OWNER=tu-usuario-github
-NEXT_PUBLIC_GITHUB_REPO=nombre-del-repositorio
-NEXT_PUBLIC_GITHUB_TOKEN=ghp_tu-token-aqui
-```
-
-3. **Para GitHub Actions/Deploy**:
-   - Agrega las mismas variables como secrets en:
-   - Settings > Secrets and variables > Actions > Repository secrets
-   - Los nombres deben ser: `NEXT_PUBLIC_GITHUB_OWNER`, `NEXT_PUBLIC_GITHUB_REPO`, `NEXT_PUBLIC_GITHUB_TOKEN`
-
-**Nota**: Si no configuras estas variables, la app funcionará normalmente con localStorage (sin persistencia entre dispositivos).
-
-## Desarrollo
-
-Iniciar servidor de desarrollo:
+### 4. Desarrollo local
 
 ```bash
 npm run dev
 ```
 
-Abrir [http://localhost:3000](http://localhost:3000) en el navegador.
+Abrir [http://localhost:3000](http://localhost:3000).
 
-## Construcción para Producción
+## Flujo de autenticación
 
-```bash
-npm run build
+```
+Usuario ingresa email
+       │
+       ▼
+¿Email en AUTHORIZED_EMAILS?
+  No → mensaje de error
+  Sí → Supabase envía magic link por email
+       │
+       ▼
+Usuario hace click en el enlace
+       │
+       ▼
+Supabase crea sesión JWT
+       │
+       ▼
+App detecta sesión → redirige al dashboard
 ```
 
-Para iniciar la versión de producción localmente:
+Solo los emails en `NEXT_PUBLIC_ADMIN_EMAIL` pueden crear, editar y eliminar reuniones. El resto solo puede ver.
+
+## Tests
 
 ```bash
-npm start
+# Modo watch (desarrollo)
+npm test
+
+# Una sola pasada
+npm run test:run
+
+# Interfaz visual
+npm run test:ui
+```
+
+Los tests cubren:
+- `__tests__/lib/zoom-parser.test.ts` — parsing de invitaciones Zoom
+- `__tests__/lib/admin.test.ts` — lógica de roles
+- `__tests__/lib/authorized-emails.test.ts` — lista de acceso
+- `__tests__/lib/meetings.test.ts` — todas las operaciones CRUD (con mock de Supabase)
+- `__tests__/integration/meetings.integration.test.ts` — flujo completo con store en memoria
+
+## Estructura del proyecto
+
+```
+my-app/
+├── app/
+│   ├── page.tsx            # Landing pública
+│   ├── layout.tsx          # Root layout, metadata, Open Graph
+│   ├── login/page.tsx      # Login con magic link
+│   └── dashboard/page.tsx  # Dashboard de reuniones
+├── components/             # Componentes React
+├── lib/
+│   ├── auth.ts             # Hook useAuth (Supabase Auth)
+│   ├── admin.ts            # Verificación de rol admin
+│   ├── authorized-emails.ts
+│   ├── meetings.ts         # CRUD con Supabase
+│   ├── supabase.ts         # Cliente Supabase
+│   └── zoom-parser.ts      # Parser de invitaciones Zoom
+├── __tests__/              # Tests unitarios e integración
+├── public/                 # Íconos, manifest, service worker
+└── vitest.config.ts
 ```
 
 ## Deploy
 
-Esta aplicación está configurada para deploy en [GitHub Pages](https://pages.github.com/) (ver workflow en `.github/workflows/deploy.yml`).
+### GitHub Pages
 
-Variables de entorno requeridas:
-- `NEXT_PUBLIC_AUTHORIZED_EMAILS`: Lista de correos autorizados separados por comas
-- `NEXT_PUBLIC_ADMIN_EMAIL`: Email del administrador con permisos de edición
+Las variables de entorno van como **Variables** (no secrets) en:  
+**Settings → Secrets and variables → Actions → Variables**
 
-Opcionales (para persistencia de datos):
-- `NEXT_PUBLIC_GITHUB_OWNER`: Tu usuario de GitHub
-- `NEXT_PUBLIC_GITHUB_REPO`: Nombre del repositorio
-- `NEXT_PUBLIC_GITHUB_TOKEN`: Personal Access Token con permisos `repo`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_AUTHORIZED_EMAILS`
+- `NEXT_PUBLIC_ADMIN_EMAIL`
 
-## Estructura del Proyecto
+### Vercel
 
-```
-my-app/
-├── app/                    # Rutas y páginas (App Router)
-│   ├── page.tsx           # Landing page
-│   ├── layout.tsx         # Root layout con metadata
-│   └── dashboard/         # Dashboard protegido
-├── components/            # Componentes React reutilizables
-│   └── ui/               # Componentes de shadcn/ui
-├── lib/                   # Utilidades y funciones auxiliares
-├── public/               # Archivos estáticos
-├── next.config.js        # Configuración de Next.js
-├── tailwind.config.ts    # Configuración de Tailwind
-└── package.json          # Dependencias y scripts
-```
+Agregar las mismas variables en **Project Settings → Environment Variables**.
 
 ## Seguridad
 
-- El acceso al dashboard está restringido únicamente a los correos electrónicos listados en la variable de entorno `AUTHORIZED_EMAILS`
-- Los usuarios no autenticados o no autorizados son redirigidos automáticamente a la landing page
-- Los enlaces de Zoom solo son visibles para usuarios autorizados
+- La autenticación es real: Supabase verifica la sesión vía JWT firmado
+- Las RLS policies en Supabase impiden el acceso a datos sin sesión válida, incluso si alguien llama a la API directamente
+- La `anon key` es pública por diseño (como la API key de Firebase); no es un secret
+- La `service_role` key **nunca** debe estar en el frontend
 
 ## Contacto
 
-**Guillermo David Andrada**
-- WhatsApp: [+54 387 629 5801](https://wa.me/543876295801)
-- Google Meet: [Agendar reunión](https://calendar.app.google/BrFnLdX8Xudn4WVD7)
-- Email: [guillermoandrada@gmail.com](mailto:guillermoandrada@gmail.com)
+**Guillermo David Andrada**  
+[GA-Software.dev](https://GA-Software.dev) · [guillermoandrada@gmail.com](mailto:guillermoandrada@gmail.com) · WhatsApp [+54 387 629 5801](https://wa.me/543876295801)
 
-## Licencia
+---
 
 Proyecto privado para uso de la Congregación Media Agua.

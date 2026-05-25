@@ -51,7 +51,7 @@ export function parseZoomMessage(text: string): Partial<ParsedZoomMeeting> | nul
   }
   
   // Extraer link de Zoom - buscar URL que contenga zoom.us y capturar el ID
-  const linkMatch = text.match(/(https:\/\/[^\s\n]+zoom\.us\/j\/(\d+))/i);
+  const linkMatch = text.match(/(https:\/\/[^\s\n]*zoom\.us\/j\/(\d+))/i);
   if (linkMatch) {
     result.zoomLink = linkMatch[1];
     // Usar el ID del link como fallback si no se extrae del texto

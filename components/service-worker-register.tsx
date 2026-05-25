@@ -8,9 +8,17 @@ export function ServiceWorkerRegister() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       if ("serviceWorker" in navigator) {
-        const basePath = process.env.NODE_ENV === "production" ? "/my-app" : "";
+        // En desarrollo, desregistrar cualquier SW anterior y salir
+        if (process.env.NODE_ENV !== "production") {
+          navigator.serviceWorker.getRegistrations().then((regs) => {
+            regs.forEach((r) => r.unregister());
+          });
+          return;
+        }
+
+        const basePath = "/my-app";
         const swUrl = `${basePath}/sw.js`;
-        
+
         navigator.serviceWorker
           .register(swUrl)
           .then((registration) => {

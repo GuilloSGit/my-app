@@ -1,7 +1,7 @@
 {
-  "name": "Congregación Media Agua - Links de Reunión",
+  "name": "Congregación Media Agua – Reuniones",
   "short_name": "Media Agua",
-  "description": "Accede fácilmente a los enlaces de Zoom para las reuniones de la congregación.",
+  "description": "Accedé a los enlaces de Zoom para las reuniones de la Congregación Media Agua.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -10,7 +10,7 @@
   "scope": "/",
   "lang": "es",
   "dir": "ltr",
-  "categories": ["productivity", "social", "utilities"],
+  "categories": ["productivity", "social"],
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
@@ -27,36 +27,13 @@
     {
       "src": "/favicon-32x32.png",
       "sizes": "32x32",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/favicon-16x16.png",
-      "sizes": "16x16",
-      "type": "image/png",
-      "purpose": "maskable any"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshot-wide.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Dashboard de Media Agua"
-    },
-    {
-      "src": "/screenshot-narrow.png",
-      "sizes": "750x1334",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Dashboard Móvil de Media Agua"
+      "type": "image/png"
     }
   ],
   "shortcuts": [
     {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
+      "name": "Ver reuniones",
+      "short_name": "Reuniones",
       "description": "Ver próximas reuniones",
       "url": "/dashboard/",
       "icons": [{ "src": "/favicon-32x32.png", "sizes": "32x32" }]

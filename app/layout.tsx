@@ -10,7 +10,8 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const basePath = process.env.NODE_ENV === 'production' ? '/my-app' : '';
+const basePath = process.env.NODE_ENV === "production" ? "/my-app" : "";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://guillosgit.github.io/my-app";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -23,10 +24,16 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Congregación Media Agua - Links de Reunión",
-  description: "Accede fácilmente a los enlaces de Zoom para las reuniones de la Congregación Media Agua. Mantente conectado con tu comunidad.",
-  keywords: ["Congregación Media Agua", "reuniones Zoom", "comunidad", "links"],
-  authors: [{ name: "Guillermo David Andrada" }],
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Reuniones · Congregación Media Agua",
+    template: "%s · Media Agua",
+  },
+  description:
+    "Accedé a los enlaces de Zoom para las reuniones de la Congregación Media Agua. Links actualizados, disponibles en un clic.",
+  keywords: ["Congregación Media Agua", "reuniones Zoom", "iglesia", "links de reunión"],
+  authors: [{ name: "Guillermo David Andrada", url: "https://GA-Software.dev" }],
+  creator: "Guillermo David Andrada",
   manifest: `${basePath}/manifest.json`,
   icons: {
     icon: [
@@ -35,9 +42,7 @@ export const metadata: Metadata = {
       { url: `${basePath}/favicon-32x32.png`, sizes: "32x32", type: "image/png" },
     ],
     shortcut: `${basePath}/favicon.ico`,
-    apple: [
-      { url: `${basePath}/apple-touch-icon.png`, sizes: "180x180", type: "image/png" },
-    ],
+    apple: [{ url: `${basePath}/apple-touch-icon.png`, sizes: "180x180", type: "image/png" }],
     other: [
       { rel: "mask-icon", url: `${basePath}/safari-pinned-tab.svg`, color: "#0d9488" },
     ],
@@ -51,10 +56,18 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
   },
   openGraph: {
-    title: "Congregación Media Agua - Links de Reunión",
-    description: "Accede fácilmente a los enlaces de Zoom para las reuniones de la congregación.",
     type: "website",
     locale: "es_AR",
+    url: siteUrl,
+    siteName: "Congregación Media Agua",
+    title: "Reuniones · Congregación Media Agua",
+    description:
+      "Accedé a los enlaces de Zoom para las reuniones de la Congregación Media Agua. Links actualizados, disponibles en un clic.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Reuniones · Congregación Media Agua",
+    description: "Accedé a los enlaces de Zoom para las reuniones de la congregación.",
   },
 };
 

@@ -32,8 +32,8 @@ export function Navbar() {
   const isLogin = normalizedPath === loginPath || normalizedPath === "/login";
   const isLanding = normalizedPath === landingPath || normalizedPath === '' || normalizedPath === '/';
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/");
   };
 

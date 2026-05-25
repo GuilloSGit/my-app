@@ -45,7 +45,7 @@ function DashboardContent() {
   const userIsAdmin = isAdmin(user);
   const userName = (() => {
     switch (user?.email) {
-      case "guillermo@hermanosgonzalez.com":
+      case "guillermoandrada@gmail.com":
         return "Guillermo";
       case "emilioeduardo933@gmail.com":
         return "Emilio";
@@ -53,8 +53,12 @@ function DashboardContent() {
         return "Leo";
       case "lg9536590@gmail.com":
         return "Leandro";
+      case "pelayesthiago2@gmail.com":
+        return "Thiago";
+      case "congregacionmediaagua7146@gmail.com":
+        return "Congregación";
       default:
-        return "Usuario";
+        return user?.email?.split("@")[0] ?? "Usuario";
     }
   })();
 
