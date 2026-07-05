@@ -1,119 +1,62 @@
-# 📱 Iconos y Favicons
+# Iconos y Favicons
 
-Este proyecto incluye soporte completo para PWA (Progressive Web App) con iconos para todas las plataformas.
+> Actualizado 2026-07-05. La versión anterior (9 de abril) listaba iconos
+> como "necesitan generarse" que en la práctica nunca se generaron con esos
+> nombres — el proyecto terminó con otro esquema, ya completo.
 
-## Archivos Generados
+## Estado real: completo
 
-### ✅ Listos
-- `favicon.svg` - Icono SVG vectorial (escalable)
-- `safari-pinned-tab.svg` - Icono para Safari
-- `manifest.json` - Configuración PWA
-- `icon-generator.html` - Generador de iconos PNG
+Todos los iconos que la app usa **ya están generados** en `public/` y son
+los que efectivamente sirve la app (referenciados desde `app/layout.tsx` y
+`public/manifest.json`, no hace falta generar nada más):
 
-### ⚠️ Necesitan Generarse
-Los siguientes iconos PNG deben generarse para completar la instalación:
+| Archivo | Tamaño | Uso | Referenciado en |
+|---|---|---|---|
+| `favicon.svg` | vectorial | favicon principal | `app/layout.tsx` (`icons.icon`) |
+| `favicon-16x16.png` | 16×16 | favicon pequeño | `app/layout.tsx`, `manifest.json` |
+| `favicon-32x32.png` | 32×32 | favicon estándar | `app/layout.tsx`, `manifest.json` |
+| `favicon.ico` | multi-res | favicon clásico | `app/layout.tsx` (`icons.shortcut`) |
+| `apple-touch-icon.png` | 180×180 | iOS/macOS home screen | `app/layout.tsx` (`icons.apple`) |
+| `safari-pinned-tab.svg` | vectorial | Safari pinned tab | `app/layout.tsx` (`icons.other`, color `#0d9488`) |
+| `android-chrome-192x192.png` | 192×192 | Android/PWA | `manifest.json` |
+| `android-chrome-512x512.png` | 512×512 | PWA store/splash | `manifest.json` |
 
-| Archivo | Tamaño | Uso |
-|---------|--------|-----|
-| `favicon.ico` | 32x32 | Favicon clásico |
-| `favicon-16x16.png` | 16x16 | Favicon pequeño |
-| `favicon-32x32.png` | 32x32 | Favicon estándar |
-| `apple-touch-icon.png` | 180x180 | iOS/macOS home screen |
-| `icon-72x72.png` | 72x72 | Android |
-| `icon-96x96.png` | 96x96 | Android |
-| `icon-128x128.png` | 128x128 | Chrome/Edge |
-| `icon-144x144.png` | 144x144 | Android |
-| `icon-152x152.png` | 152x152 | iOS |
-| `icon-192x192.png` | 192x192 | Android/PWA |
-| `icon-256x256.png` | 256x256 | Windows/macOS |
-| `icon-384x384.png` | 384x384 | PWA splash |
-| `icon-512x512.png` | 512x512 | PWA store |
+El esquema real terminó siendo el de **RealFaviconGenerator** (nombres
+`android-chrome-*`, `apple-touch-icon`, `favicon-*`), no el esquema
+`icon-72x72.png`/`icon-144x144.png`/etc. que proponía la versión vieja de
+este doc — ese esquema alternativo nunca se generó y no hace falta generarlo.
 
-## 🎨 Generar Iconos
+## Archivo obsoleto sin usar: `public/site.webmanifest`
 
-### Opción 1: Generador Local (Recomendado)
-1. Abre el archivo `public/icon-generator.html` en tu navegador
-2. Haz clic en "Descargar" para cada tamaño
-3. Guarda los archivos en `/public/`
+Existe `public/site.webmanifest` con `name`/`short_name` vacíos — es un
+artefacto abandonado de antes de que `public/manifest.json` (el que sí se usa
+de verdad, referenciado en `app/layout.tsx` como `manifest: ${basePath}/manifest.json`)
+se completara con el contenido real. No lo referencia nada del código. Se
+puede borrar con seguridad si en algún momento se hace limpieza, pero no se
+tocó en esta pasada para no mezclar una limpieza de archivos con la
+actualización de docs.
 
-### Opción 2: Herramientas Online
-1. Descarga `favicon.svg` 
-2. Usa [favicon.io](https://favicon.io/) o [realfavicongenerator.net](https://realfavicongenerator.net/)
-3. Sube el SVG y genera todos los tamaños
+## Si hay que regenerar/cambiar el diseño
 
-### Opción 3: Script Node.js
-```bash
-# Si tienes Node.js instalado
-npm install -g sharp
-# Luego puedo proporcionarte un script para generar los PNG
-```
+1. Editar `public/favicon.svg` (color principal `#0d9488`, teal de Media Agua).
+2. Regenerar los PNG desde ahí. Opciones:
+   - Abrir `public/icon-generator.html` en el navegador (generador local, ya
+     incluido en el repo) y descargar cada tamaño.
+   - Subir el SVG a [realfavicongenerator.net](https://realfavicongenerator.net/)
+     (así se generó el set actual) o [favicon.io](https://favicon.io/).
+3. Reemplazar los archivos en `public/` con los mismos nombres de la tabla de
+   arriba — no hace falta tocar `app/layout.tsx` ni `manifest.json` si los
+   nombres no cambian.
 
-## 📲 Instalación en Dispositivos
+## Verificación después de cambiar algo
 
-### Android
-1. Abre Chrome y visita el sitio
-2. Menú → "Agregar a pantalla de inicio"
-3. El icono aparecerá como app nativa
-
-### iOS
-1. Abre Safari y visita el sitio
-2. Compartir → "Agregar a pantalla de inicio"
-3. Usa el icono `apple-touch-icon.png`
-
-### Windows (Edge/Chrome)
-1. Visita el sitio
-2. Menú → "Apps" → "Instalar esta página como una aplicación"
-
-### macOS (Safari)
-1. Visita el sitio
-2. Archivo → "Agregar al Dock"
-
-## 🎨 Personalización
-
-El color principal (Media Agua teal) es `#0d9488`. Para cambiar el tema:
-
-1. Edita `public/favicon.svg`
-2. Cambia los colores en el atributo `fill`
-3. Regenera los PNG
-
-## 🔍 Verificación
-
-Después de generar los iconos, verifica en:
-- [RealFaviconGenerator](https://realfavicongenerator.net/favicon_checker) - Comprueba todos los favicons
-- Chrome DevTools → Application → Manifest - Verifica PWA
+- [RealFaviconGenerator checker](https://realfavicongenerator.net/favicon_checker)
+- Chrome DevTools → Application → Manifest (para PWA/`manifest.json`)
 - Safari → Develop → Show Web Inspector → Icons
 
-## 📦 Estructura Final
+## Instalación en dispositivos (sin cambios, sigue vigente)
 
-```
-public/
-├── favicon.svg              # Icono vectorial principal
-├── favicon.ico              # Favicon multiresolución
-├── favicon-16x16.png        # Pequeño
-├── favicon-32x32.png        # Estándar
-├── apple-touch-icon.png     # iOS/macOS
-├── safari-pinned-tab.svg    # Safari
-├── icon-72x72.png           # Android
-├── icon-96x96.png           # Android
-├── icon-128x128.png         # Chrome
-├── icon-144x144.png         # Android
-├── icon-152x152.png         # iOS
-├── icon-192x192.png         # PWA
-├── icon-256x256.png         # Windows
-├── icon-384x384.png         # PWA
-├── icon-512x512.png         # PWA Store
-├── manifest.json            # Configuración PWA
-└── icon-generator.html      # Generador local
-```
-
-## ⚠️ Nota Importante
-
-Los iconos PNG deben generarse **después** de que estés satisfecho con el diseño del SVG, ya que son versiones rasterizadas (pixeles) del vector.
-
-El calendario incluye:
-- 6 días de colores diferentes (rosa, ámbar, verde, azul, violeta, teal)
-- Color teal #0d9488 como color principal
-- Fondo blanco con borde teal
-- Dos anillos superiores
-
-¿Necesitas ayuda generando los iconos PNG o quieres modificar el diseño SVG?
+- **Android/Chrome**: menú → "Agregar a pantalla de inicio".
+- **iOS/Safari**: Compartir → "Agregar a pantalla de inicio" (usa `apple-touch-icon.png`).
+- **Windows/Edge/Chrome desktop**: menú → "Apps" → "Instalar esta página como una aplicación".
+- **macOS/Safari**: Archivo → "Agregar al Dock".

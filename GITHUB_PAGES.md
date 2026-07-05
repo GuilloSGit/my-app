@@ -1,179 +1,107 @@
-# 🚀 Deploy en GitHub Pages
+# Deploy en GitHub Pages
 
-Este proyecto está configurado para deploy automático en GitHub Pages.
+> Actualizado 2026-07-05. Reemplaza la versión anterior (9 de abril), que
+> describía un flujo por rama `gh-pages` que ya no es el que corre.
 
-## 📋 Configuración
+## Cómo se despliega hoy
 
-La app usa:
-- **Base URL:** `https://guillosgit.github.io/my-app/`
-- **Branch de deploy:** `gh-pages`
-- **Carpeta de build:** `dist/`
-
-## 🔧 Opciones de Deploy
-
-### Opción 1: Deploy Automático (Recomendado)
-
-Ejecuta el script de deploy:
-
-```bash
-npm run deploy
-```
-
-Esto:
-1. Compila el proyecto (`next build`)
-2. Crea `.nojekyll` (desactiva procesamiento Jekyll)
-3. Sube a la rama `gh-pages` de GitHub
-
-### Opción 2: GitHub Actions (CI/CD)
-
-Crea `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run build
-      - uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-```
-
-### Opción 3: Manual por Web
-
-1. Ve a **Settings** → **Pages** en tu repo
-2. Selecciona **Deploy from a branch**
-3. Elige la rama `gh-pages` y carpeta `/ (root)`
-4. Click en **Save**
-
-## ⚙️ Configurar Repo para gh-pages
-
-### Instalación de gh-pages (ya hecha)
-
-```bash
-npm install --save-dev gh-pages
-```
-
-### Configurar GitHub Pages en el repo:
-
-1. Ve a tu repo en GitHub
-2. **Settings** → **Pages** (en el sidebar izquierdo)
-3. En **Build and deployment**:
-   - Source: **Deploy from a branch**
-   - Branch: **gh-pages** / **/(root)**
-4. Click **Save**
-
-## 🌐 URLs de Acceso
-
-Una vez deployado, accede en:
+El deploy es **100% automático vía GitHub Actions**, usando el mecanismo
+nativo de GitHub Pages (`actions/deploy-pages`), no una rama `gh-pages`.
+Workflow: `.github/workflows/deploy.yml`.
 
 ```
-https://guillosgit.github.io/my-app/
+push a master/main
+   │
+   ▼
+job "test"    → npm run test:run (Vitest) + npx playwright test (E2E)
+   │             si algo falla, ACÁ TERMINA. No se construye ni se publica nada.
+   ▼
+job "build"   → npm run build (next build, output: export) → dist/
+   │             sube dist/ como Pages artifact (actions/upload-pages-artifact)
+   ▼
+job "deploy"  → actions/deploy-pages publica el artifact
 ```
 
-### Rutas de la App
+No existe (ni hace falta) `npm run deploy` como paso manual de rutina — el
+script sigue existiendo en `package.json` (`next build && touch dist/.nojekyll
+&& gh-pages -d dist`) como fallback manual si alguna vez GitHub Actions no
+estuviera disponible, pero **no es el camino que usa el proyecto**. La rama
+remota `gh-pages` puede seguir existiendo en el repo como remanente de un
+enfoque anterior; no la borra el pipeline actual y no hace falta tocarla.
 
-| Ruta | URL Completa |
-|------|--------------|
-| Landing | `https://guillosgit.github.io/my-app/` |
-| Login | `https://guillosgit.github.io/my-app/login/` |
-| Dashboard | `https://guillosgit.github.io/my-app/dashboard/` |
+## Variables de entorno
 
-## 🔧 Configuraciones Técnicas
+Se configuran como **Variables** (no Secrets) en:
+**Settings → Secrets and variables → Actions → Variables**
 
-### next.config.js
+- `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_AUTHORIZED_EMAILS`
+- `NEXT_PUBLIC_ADMIN_EMAIL`
 
-```javascript
-basePath: '/my-app',
-assetPrefix: '/my-app/',
+La `anon key` de Supabase es pública por diseño (no es un secret real); las
+RLS policies en Supabase son las que efectivamente protegen los datos.
+
+## Node version
+
+El workflow corre con **Node 20** en los tres jobs. No bajarlo a 18: Vitest 4
+requiere Node ≥20 (falla con un `SyntaxError` sobre `node:util`'s `styleText`
+si se corre en Node 18 — ver `test job` de CI si esto se toca).
+
+## URLs de la app
+
+```
+https://guillosgit.github.io/my-app/            Landing
+https://guillosgit.github.io/my-app/login/      Login (magic link)
+https://guillosgit.github.io/my-app/dashboard/  Dashboard (requiere sesión)
+```
+
+## Configuración técnica (next.config.js)
+
+```js
+output: isProd ? 'export' : undefined,   // export estático solo en prod
+distDir: isProd ? 'dist' : '.next',
+basePath: isProd ? '/my-app' : '',       // GitHub Pages sirve desde /my-app
+assetPrefix: isProd ? '/my-app/' : '',
 trailingSlash: true,
 ```
 
-Esto asegura que los assets y rutas funcionen correctamente en el subdirectorio de GitHub Pages.
+`isProd` se decide por `NODE_ENV === 'production'`, que `next build` setea
+solo — no hace falta (ni hay que) setearlo a mano.
 
-### .nojekyll
+`.nojekyll` se genera en el build (ver script `deploy` en package.json y el
+job `build` del workflow) para que GitHub Pages no intente procesar `_next/`
+con Jekyll.
 
-El archivo `.nojekyll` evita que GitHub procese el sitio con Jekyll, permitiendo que los archivos que empiezan con `_` (como `_next/`) se sirvan correctamente.
+## Autenticación
 
-## 📁 Estructura del Build
+**No es client-side/localStorage** (así lo describía la versión vieja de
+este doc). Desde la migración a Supabase Auth (2026-05-25), el login es un
+magic link real: Supabase manda el email, verifica la sesión vía JWT firmado,
+y las RLS policies de Postgres son las que efectivamente bloquean el acceso a
+los datos sin sesión válida — funciona igual en GitHub Pages (estático) que
+en cualquier otro hosting, porque toda la lógica de auth vive en el cliente
+hablando directo con Supabase, no en un backend propio.
 
-```
-dist/
-├── index.html              # Landing
-├── login/
-│   └── index.html          # Login
-├── dashboard/
-│   └── index.html          # Dashboard
-├── _next/                  # Assets de Next.js
-├── favicon.svg
-├── manifest.json
-└── .nojekyll               # Evita Jekyll
-```
+## Troubleshooting
 
-## 🔄 Flujo de Trabajo
+### El login da "Failed to fetch"
+Antes de sospechar del código: los proyectos Supabase free tier se pausan
+solos tras ~7 días de inactividad. Revisar el estado del proyecto en
+supabase.com/dashboard y hacer "Resume" si está pausado (pasó el
+2026-07-04, ver memoria del proyecto).
 
-1. **Desarrollo:**
-   ```bash
-   npm run dev
-   ```
+### El job `test` falla en CI pero pasa en local
+Revisar la versión de Node — Vitest 4 necesita ≥20 (ver arriba).
 
-2. **Build local:**
-   ```bash
-   npm run build
-   ```
+### Assets 404 / rutas rotas
+- Confirmar `basePath`/`assetPrefix` en `next.config.js`.
+- Confirmar que `.nojekyll` existe en `dist/` tras el build.
+- `trailingSlash: true` es necesario para que las rutas del export estático
+  resuelvan bien en GitHub Pages.
 
-3. **Deploy:**
-   ```bash
-   npm run deploy
-   ```
-
-4. **Verificar:** Espera 1-2 minutos y visita `https://guillosgit.github.io/my-app/`
-
-## ⚠️ Consideraciones
-
-- GitHub Pages tiene **límite de 100MB** por repo
-- **No soporta** Server-Side Rendering (por eso usamos `output: 'export'`)
-- Los cambios pueden tardar **1-5 minutos** en propagarse
-- La autenticación es **client-side** (localStorage), funciona en static hosting
-
-## 🆘 Troubleshooting
-
-### Assets 404
-- Verifica que `basePath` y `assetPrefix` estén correctos
-- Asegúrate de que `.nojekyll` exista en `dist/`
-
-### Rutas no funcionan
-- Usa `trailingSlash: true` en next.config.js
-- Enlaces con `<a href="/my-app/login/">` en lugar de rutas absolutas
-
-### Cambios no aparecen
-- Limpia caché: **Ctrl + F5**
-- Verifica en modo incógnito
-- Revisa la rama `gh-pages` en GitHub
-
-## 📚 Recursos
-
-- [GitHub Pages Docs](https://docs.github.com/en/pages)
-- [Next.js Static Export](https://nextjs.org/docs/app/building-your-application/deploying/static-exports)
-- [gh-pages npm](https://www.npmjs.com/package/gh-pages)
+### Los cambios no aparecen
+- Puede tardar 1-2 minutos en propagar tras un deploy exitoso.
+- Confirmar en `gh run list` / `gh run view` que el run terminó en verde
+  (test ✓ build ✓ deploy ✓), no asumirlo.
