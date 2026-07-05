@@ -40,7 +40,7 @@ components/
   theme-toggle.tsx       Botón light/dark (usa resolvedTheme, no theme — ver Gotchas)
   meeting-card.tsx       Card de una reunión: expand, editar, eliminar, compartir
   meeting-form.tsx       Form de alta/edición (validado con lib/meetings.validateMeeting)
-  whatsapp-share.tsx     Compartir por WhatsApp: envío directo o personalizar mensaje
+  whatsapp-share.tsx     Compartir por WhatsApp: un botón, envío directo (sin editor)
   csv-import.tsx         Alta masiva de reuniones desde CSV (papaparse)
   zoom-import-dialog.tsx Pegar una invitación de Zoom y parsearla (lib/zoom-parser)
   service-worker-register.tsx  Registra el SW solo en prod, lo desregistra en dev
@@ -152,3 +152,9 @@ sección `## Tests`):
   manifest real es `public/manifest.json` (ver `ICONS_README.md`).
 - Los `<label>` de `MeetingForm` no usan `htmlFor`/`id` — los tests
   (RTL/Playwright) ubican los inputs por `placeholder`, no por label.
+- **El header de `MeetingCard` es clickeable** (togglea expand/collapse).
+  Cualquier botón/link dentro de ese header (quick actions) necesita
+  `e.stopPropagation()` en su `onClick`, o el click también dispara el
+  toggle del header como efecto colateral — pasó con el botón de WhatsApp
+  compacto, que sin `stopPropagation` parecía "abrir edición" en vez de
+  solo compartir.
