@@ -125,16 +125,23 @@ Solo los emails en `NEXT_PUBLIC_ADMIN_EMAIL` pueden crear, editar y eliminar reu
 
 ## Tests
 
+Hay tres capas de tests. Las dos primeras corren con Vitest y **no abren un
+navegador real**; la tercera corre con Playwright y sí.
+
 ```bash
-# Modo watch (desarrollo)
-npm test
+# Vitest: unitarios + componentes (rápido, mockea Supabase)
+npm test               # modo watch
+npm run test:run       # una sola pasada (la que corre en CI)
+npm run test:ui        # interfaz visual
 
-# Una sola pasada
-npm run test:run
-
-# Interfaz visual
-npm run test:ui
+# Playwright: E2E en un navegador real
+npx playwright test              # una sola pasada
+npx playwright test --ui         # modo interactivo, paso a paso
+npx playwright show-report       # ver el último reporte HTML
 ```
+
+La primera vez que corras Playwright localmente, instalá el navegador:
+`npx playwright install chromium`.
 
 Los tests cubren:
 - `__tests__/lib/zoom-parser.test.ts` — parsing de invitaciones Zoom
@@ -142,6 +149,38 @@ Los tests cubren:
 - `__tests__/lib/authorized-emails.test.ts` — lista de acceso
 - `__tests__/lib/meetings.test.ts` — todas las operaciones CRUD (con mock de Supabase)
 - `__tests__/integration/meetings.integration.test.ts` — flujo completo con store en memoria
+- `__tests__/components/login.test.tsx` — login con clicks reales (React Testing
+  Library): email no autorizado, email autorizado, error de Supabase, redirect
+  si ya hay sesión
+- `__tests__/components/dashboard-meetings.test.tsx` — CRUD de reuniones desde
+  la UI (crear/editar/eliminar, camino feliz y bordes) y control de acceso
+  admin/no-admin
+- `e2e/login.spec.ts` y `e2e/dashboard.spec.ts` — los mismos flujos, pero en un
+  navegador real contra el dev server. `e2e/helpers/mock-supabase.ts` inyecta
+  un Supabase falso en `window` (ver el seam en `lib/supabase.ts`) para no
+  depender ni pegarle nunca al proyecto real.
+
+**El deploy está gateado por los tests**: en `.github/workflows/deploy.yml`, el
+job `build` (y por lo tanto `deploy`) tiene `needs: test`. Si `npm run test:run`
+o `npm run test:e2e` fallan, no se llega a construir ni publicar el sitio.
+
+### Cómo agregar un test nuevo
+
+- **Unitario** (una función pura en `lib/`): copiá el patrón de
+  `__tests__/lib/admin.test.ts` — `describe`/`it`, sin mocks si la función no
+  toca Supabase.
+- **De componente** (un flujo de UI con clicks): copiá el patrón de
+  `__tests__/components/dashboard-meetings.test.tsx` — mockeá `@/lib/auth` y
+  `@/lib/meetings` (o `@/lib/supabase` directamente, como en `login.test.tsx`),
+  `render(<Componente />)`, y usá `userEvent` para simular clicks/tipeo.
+- **E2E** (mismo flujo pero en un navegador real): agregá un `test(...)` en
+  `e2e/`, llamá `installMockSupabase(page, { session, meetings })` antes de
+  `page.goto(...)`, y usá los locators de Playwright (`getByRole`,
+  `getByPlaceholder`, `getByTitle`) para interactuar.
+
+Cualquier archivo `*.test.ts`/`*.test.tsx` dentro de `__tests__/` lo recoge
+Vitest automáticamente; cualquier `*.spec.ts` dentro de `e2e/` lo recoge
+Playwright. No hace falta registrarlos en ningún lado.
 
 ## Estructura del proyecto
 
@@ -160,9 +199,11 @@ my-app/
 │   ├── meetings.ts         # CRUD con Supabase
 │   ├── supabase.ts         # Cliente Supabase
 │   └── zoom-parser.ts      # Parser de invitaciones Zoom
-├── __tests__/              # Tests unitarios e integración
+├── __tests__/              # Tests unitarios, integración y de componentes (Vitest)
+├── e2e/                    # Tests E2E en navegador real (Playwright)
 ├── public/                 # Íconos, manifest, service worker
-└── vitest.config.ts
+├── vitest.config.ts
+└── playwright.config.ts
 ```
 
 ## Deploy

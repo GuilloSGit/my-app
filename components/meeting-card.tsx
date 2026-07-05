@@ -110,7 +110,7 @@ export function MeetingCard({ meeting, isAdmin, onEdit, onDelete }: MeetingCardP
                 ¿Eliminar reunión?
               </h3>
               <p className="text-slate-600 dark:text-zinc-400 mb-6">
-                Esta acción no se puede deshacer. ¿Estás seguro de eliminar "{meeting.title}"?
+                Esta acción no se puede deshacer. ¿Estás seguro de eliminar &quot;{meeting.title}&quot;?
               </p>
               <div className="flex gap-3">
                 <button
