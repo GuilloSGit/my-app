@@ -36,15 +36,26 @@ export function WhatsAppShare({ meeting, expanded = false }: WhatsAppShareProps)
   return (
     <div className="space-y-3">
       {!showEditor ? (
-        <motion.button
-          onClick={() => setShowEditor(true)}
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
-        >
-          <Edit3 className="w-4 h-4" />
-          Personalizar mensaje y compartir
-        </motion.button>
+        <div className="flex gap-3">
+          <motion.button
+            onClick={handleShare}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
+          >
+            <Send className="w-4 h-4" />
+            Enviar
+          </motion.button>
+          <motion.button
+            onClick={() => setShowEditor(true)}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-zinc-800 border border-green-500 text-green-600 dark:text-green-400 font-medium rounded-lg hover:bg-green-50 dark:hover:bg-zinc-700 transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+            Personalizar mensaje y compartir
+          </motion.button>
+        </div>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
