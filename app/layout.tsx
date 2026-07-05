@@ -63,11 +63,20 @@ export const metadata: Metadata = {
     title: "Reuniones · Congregación Media Agua",
     description:
       "Accedé a los enlaces de Zoom para las reuniones de la Congregación Media Agua. Links actualizados, disponibles en un clic.",
+    images: [
+      {
+        url: `${basePath}/android-chrome-512x512.png`,
+        width: 512,
+        height: 512,
+        alt: "Congregación Media Agua",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Reuniones · Congregación Media Agua",
     description: "Accedé a los enlaces de Zoom para las reuniones de la congregación.",
+    images: [`${basePath}/android-chrome-512x512.png`],
   },
 };
 

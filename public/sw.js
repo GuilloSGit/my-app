@@ -1,4 +1,8 @@
-const CACHE_NAME = 'media-agua-v1';
+// Bump esta versión en cada cambio de estrategia de cache — el activate
+// handler borra cualquier cache con un nombre distinto al actual, así que
+// cambiarla fuerza a limpiar lo viejo en los navegadores que ya tenían
+// una versión anterior instalada.
+const CACHE_NAME = 'media-agua-v2';
 
 // Determine base path based on environment
 const isDevelopment = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
@@ -53,51 +57,41 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  
+
   // Only cache GET requests to avoid issues with POST, PUT, etc.
   if (event.request.method !== 'GET') {
     return;
   }
-  
+
+  // For development, don't touch Next.js internal routes
+  if (isDevelopment && event.request.url.includes('/_next/')) {
+    return;
+  }
+
+  // Network-first: siempre intenta traer la versión más nueva primero.
+  // Si el fetch falla (sin conexión), recién ahí cae al cache. Con
+  // cache-first (la estrategia anterior), una vez que algo quedaba
+  // cacheado se servía para siempre, sin importar cuántos deploys nuevos
+  // hubiera — el usuario veía la app vieja hasta que limpiara el storage
+  // del sitio a mano.
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
+        // Don't cache non-successful responses
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-        
-        // For development, don't cache Next.js internal routes
-        if (isDevelopment && event.request.url.includes('/_next/')) {
-          return fetch(event.request);
-        }
-        
-        return fetch(event.request)
-          .then((response) => {
-            // Don't cache non-successful responses
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            
-            // Clone the response since it can only be consumed once
-            const responseToCache = response.clone();
-            
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-            
-            return response;
-          })
-          .catch((error) => {
-            console.error('[SW] Network fetch failed:', error);
-            
-            // Try to serve from cache as fallback
-            return caches.match(event.request);
-          });
+
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+
+        return response;
       })
-      .catch((error) => {
-        console.error('[SW] Fetch handler failed:', error);
-        throw error;
+      .catch(() => {
+        // Sin red: servir lo último que se haya cacheado, si existe
+        return caches.match(event.request);
       })
   );
 });
