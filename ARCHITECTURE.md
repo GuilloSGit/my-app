@@ -152,6 +152,17 @@ sección `## Tests`):
   manifest real es `public/manifest.json` (ver `ICONS_README.md`).
 - Los `<label>` de `MeetingForm` no usan `htmlFor`/`id` — los tests
   (RTL/Playwright) ubican los inputs por `placeholder`, no por label.
+- **La fuente de GitHub Pages tiene que ser `"workflow"`, no `"legacy"`.**
+  Si alguna vez `gh api repos/GuilloSGit/my-app/pages -q '{build_type}'`
+  devuelve `"legacy"`, GitHub publica el sitio con su propio Jekyll automático
+  (renderiza `README.md` como home) en paralelo a nuestro workflow, y rutas
+  como `/login`/`/dashboard` dan 404 aunque el deploy nuestro haya sido
+  exitoso. Pasó el 2026-07-05 — fix y detalle en `GITHUB_PAGES.md`.
+- **`public/sw.js` es network-first**, no cache-first (se cambió el
+  2026-07-05, antes cacheaba todo para siempre bajo un `CACHE_NAME` fijo). Si
+  un fix no se refleja en el navegador aunque el deploy haya dado verde,
+  sospechar primero del Service Worker (probar en incógnito) antes que del
+  código o del deploy.
 - **El header de `MeetingCard` es clickeable** (togglea expand/collapse).
   Cualquier botón/link dentro de ese header (quick actions) necesita
   `e.stopPropagation()` en su `onClick`, o el click también dispara el

@@ -86,6 +86,27 @@ hablando directo con Supabase, no en un backend propio.
 
 ## Troubleshooting
 
+### La home funciona pero `/login/` o `/dashboard/` dan 404
+**Chequear primero la fuente de Pages, antes que nada:**
+```bash
+gh api repos/GuilloSGit/my-app/pages -q '{build_type, source}'
+```
+Tiene que decir `"build_type":"workflow"`. Si dice `"legacy"`, GitHub está
+publicando el sitio con su propio build automático de Jekyll (dispara un job
+`pages build and deployment` en paralelo a nuestro workflow, visible en
+`gh run list`) — Jekyll renderiza el `README.md` de la raíz como si fuera la
+home (por eso "algo" se ve en `/`), pero no tiene ni idea de `/login`ni
+`/dashboard`, así que esas rutas 404 aunque nuestro workflow haya corrido
+perfecto. Pasó el 2026-07-05. Fix:
+```bash
+gh api -X PUT repos/GuilloSGit/my-app/pages -f build_type=workflow
+gh workflow run deploy.yml   # republicar
+```
+Después de cambiar `build_type`, la propagación puede tardar varios minutos
+(los `curl` seguían mostrando el contenido viejo un rato después de que la
+API ya confirmaba el cambio y el deploy decía `success`) — no hay forma de
+apurarlo vía API/CLI, solo esperar y reintentar.
+
 ### El login da "Failed to fetch"
 Antes de sospechar del código: los proyectos Supabase free tier se pausan
 solos tras ~7 días de inactividad. Revisar el estado del proyecto en
