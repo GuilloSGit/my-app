@@ -547,19 +547,31 @@ Variables/Secrets, no asumir que solo se tocó lo que se quería) en
 Estado final de la sesión: Fase 2 pausada, Fase 2-bis verificada e
 implementada, sitio en producción restaurado y funcionando.
 
-## 2026-09-12 (cierre, continuación) — cron de zoom-apply-browser verificado
+## 2026-09-12 (cierre, continuación) — workflow verificado, cron automático DESACTIVADO a propósito
 
-Corrida manual (`gh workflow run zoom-apply-browser.yml`) del cron real —
-encontró un segundo bug real, no relacionado con Zoom: `@supabase/
-supabase-js` necesita WebSocket nativo para inicializar su
-`RealtimeClient` (aunque este script no use realtime), y falla con
-`Error: Node.js 20 detected without native WebSocket support` en Node 20.
-El workflow pedía `node-version: "20"` (copiado sin pensar del patrón de
-`deploy.yml`, que si necesita exactamente eso por Vitest 4 — pero
-`zoom-apply-browser.yml` es un workflow completamente aparte, sin esa
-restricción). Fix: bump a Node 22. Segunda corrida manual, verde de punta
-a punta: sesión restaurada, conexión a Supabase OK, **"Sin jobs pendientes
-en zoom_outbox"** (correcto — todavía no hay ningún `meeting_schedules`
-real cargado, eso es Fase 4). El cron de cada 10 minutos queda confirmado
-funcionando de punta a punta, listo para cuando haya jobs reales que
-procesar.
+Corrida manual (`gh workflow run zoom-apply-browser.yml`) — encontró un
+segundo bug real, no relacionado con Zoom: `@supabase/supabase-js`
+necesita WebSocket nativo para inicializar su `RealtimeClient` (aunque
+este script no use realtime), y falla con `Error: Node.js 20 detected
+without native WebSocket support` en Node 20. El workflow pedía
+`node-version: "20"` (copiado sin pensar del patrón de `deploy.yml`, que
+sí necesita exactamente eso por Vitest 4 — pero `zoom-apply-browser.yml`
+es un workflow completamente aparte, sin esa restricción). Fix: bump a
+Node 22. Segunda corrida manual, verde de punta a punta: sesión
+restaurada, conexión a Supabase OK, **"Sin jobs pendientes en
+zoom_outbox"** (correcto — todavía no hay ningún `meeting_schedules` real
+cargado, eso es Fase 4).
+
+**El usuario preguntó, con razón, "¿cron cada 10 min para qué?"** — el
+workflow había quedado con `schedule: cron: "*/10 * * * *"` activo desde
+que se escribió, pero no hay ningún productor real (ni `meeting_schedules`
+cargado a mano, ni cron de `reconcile`) que llene `zoom_outbox` — dejarlo
+así era correr un runner completo con Playwright+Chromium cada 10 minutos
+(144 veces/día) contra una cola que siempre está vacía, puro gasto de
+minutos de GitHub Actions sin ningún trabajo real. **Corregido**: se sacó
+el trigger `schedule:`, el workflow queda solo con `workflow_dispatch`
+(a demanda) hasta Fase 5, que activa este cron **junto con** el de
+`reconcile` (el que realmente produce jobs) — activarlos por separado no
+tiene sentido. **Lección**: no activar un cron de "consumidor" antes de
+que exista el "productor" que lo alimente, aunque el consumidor en sí
+funcione perfecto.

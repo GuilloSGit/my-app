@@ -80,12 +80,12 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 - [x] `capture-session.ts` — captura de sesión a mano (nunca se scriptea el login, para no arriesgar CAPTCHA/verificación contra una cuenta gestionada por una organización)
 - [x] `lib/outbox.ts` — mismo contrato `dequeue_zoom_jobs`/`complete_zoom_job` que ya usa la Edge Function `zoom-apply`, consumido desde Node
 - [x] `lib/zoom-browser.ts` (`ZoomBrowserClient`) + `apply.ts` — loop dequeue → browser → complete, con screenshot en cualquier falla
-- [x] `.github/workflows/zoom-apply-browser.yml` — cron cada 10 min + `workflow_dispatch`, sube capturas de fallas como artifact
+- [x] `.github/workflows/zoom-apply-browser.yml` — sin cron automático a propósito (ver nota abajo), `workflow_dispatch` para correrlo a demanda, sube capturas de fallas como artifact
 - [x] Sesión capturada y verificada como autenticada contra `zoom.us/profile`
 - [x] `npx playwright codegen` grabado por el usuario (crear/editar/cancelar) — selectores reales trasladados a `zoom-browser.ts`
 - [x] **`createMeeting`/`updateMeeting`/`cancelMeeting` verificados de punta a punta contra la cuenta real** (autorización explícita del usuario para esta sesión) — ciclo completo crear→editar→cancelar confirmado releyendo la página de detalle en cada paso, no solo confiando en que el click no tirara error. Encontrados y arreglados: `networkidle` poco confiable en este SPA, timing entre comboboxes de duración, formato real del combobox de hora (24hs, texto libre), y el bug más importante — la página se cerraba antes de que la request de guardar/borrar terminara, dejando el cambio sin aplicar pese a "éxito" aparente. Ver detalle en `ZOOM_AUTOMATION.md`/`PROGRESS.md`.
-- [ ] **Bloqueado en el usuario para activar el cron**: cargar `ZOOM_SESSION_STATE_B64_1`/`ZOOM_SESSION_STATE_B64_2` (la sesión en base64 no entra en un solo secret de GitHub, límite 64 KB — se parte en dos)/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` como **Secrets** del repo en GitHub (no como "Variables" — son cosas distintas, ver PROGRESS.md 2026-09-12) (nunca por el chat)
-- [ ] Monitorear las primeras corridas reales del cron (contra el outbox real) antes de confiar en que corra sola indefinidamente
+- [x] Los 7 secrets cargados en GitHub como Secrets (no Variables) y el workflow probado a demanda de punta a punta: sesión restaurada, conexión a Supabase OK, dequeue funcionando (reportó correctamente "Sin jobs pendientes" — la cola está vacía porque todavía no hay `meeting_schedules` reales ni cron de `reconcile`). De paso se encontró y arregló otro bug: `@supabase/supabase-js` necesita Node ≥22 (WebSocket nativo), el workflow pedía Node 20 copiado de `deploy.yml` sin pensar.
+- **No se activó el `schedule:` del cron a propósito**: correr un runner con Playwright+Chromium cada 10 min contra una cola siempre vacía es puro gasto de minutos de GitHub Actions. Se reactiva recién en **Fase 5**, junto con el cron de `reconcile` (que es lo que realmente llena `zoom_outbox`) — activarlos por separado no tiene sentido.
 
 ## Fase 3 — Enriquecimiento WOL
 

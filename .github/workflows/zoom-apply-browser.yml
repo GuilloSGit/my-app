@@ -11,10 +11,18 @@ name: Zoom apply (navegador)
 # La sesión en base64 no entra en un solo secret de GitHub (incluso partida
 # en dos de ~50 KB dio "too large" — el límite real resultó más chico de
 # lo documentado) — se partió en 5 pedazos de ~20 KB y se reconstruye acá.
+#
+# Sin cron automático a propósito (2026-09-12): activarlo ahora sería
+# correr un runner completo con Playwright+Chromium cada 10 minutos contra
+# una `zoom_outbox` que siempre está vacía — no hay `meeting_schedules`
+# reales cargados todavía (Fase 4, sin UI) ni un cron de `reconcile` que
+# la alimente (Fase 5). Puro gasto de minutos de GitHub Actions sin ningún
+# trabajo real que hacer. Se reactiva el `schedule:` recién en Fase 5,
+# junto con el cron de `reconcile` que sí llena la cola. Hasta entonces,
+# probar a demanda con `workflow_dispatch` (`gh workflow run
+# zoom-apply-browser.yml`).
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 jobs:
