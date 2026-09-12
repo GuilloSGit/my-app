@@ -426,10 +426,20 @@ de falla posible. El selector `.cardLine1` (con fallback a `a.text()`) fue
 **verificado contra el DOM real** en Fase 0 — no es una suposición sin
 chequear, ver `PROGRESS.md` y el fixture `__tests__/fixtures/wol-2026-38.html`.
 
-**Desacople obligatorio**: crear la reunión (título, nunca falla) no debe
-depender del fetch a WOL (puede fallar o estar legítimamente ausente). Dos
-pasos: crear con el título, un job aparte (`wol-enrich`, Fase 3) completa
-el `agenda` por `PATCH` cuando el contenido aparece.
+**Desacople de agenda — revisado 2026-09-12**: el diseño original preveía
+un job aparte (`wol-enrich`) que completara el `agenda` por `PATCH` cuando
+el contenido apareciera después de crear la reunión solo con el título. Se
+verificó contra wol.jw.org real (semanas 2026/38 a 2026/52, ~3.5 meses de
+anticipación) que el contenido está publicado muy por delante del
+horizonte de 1 mes de `reconcile` — no hay lag de publicación que resolver.
+El desacople real ya lo da gratis `reconciler_upsert_occurrence` (Fase 1/2):
+si la ocurrencia ya está sincronizada (tiene `zoom_meeting_id`) y el
+contenido cambia, encola `update` en vez de `create` — mismo efecto que un
+PATCH de agenda, preservando `join_url`, sin necesitar una Edge Function
+nueva. `wol_unreachable` tampoco necesita un job dedicado: esas semanas
+nunca se cachean, así que la próxima corrida de `reconcile` reintenta sola.
+**No hay `wol-enrich` como función separada** — ver también el cuadro de
+"Jobs" más abajo, actualizado.
 
 Cachear por semana en `wol_week_cache` — **solo fetches exitosos**, nunca
 un "no se pudo conectar" (eso es transitorio, se reintenta siempre en la
@@ -566,10 +576,28 @@ usuario:
 
 | Job | Dónde corre | Horario | Qué hace |
 |---|---|---|---|
-| `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola en `zoom_outbox` |
+| `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola create/update/cancel en `zoom_outbox` (el `update` cubre el caso de "agenda que cambió", ver Fase 3) |
 | `zoom-apply-browser` | GitHub Actions | **sin cron propio** | drena el outbox manejando el navegador |
-| `wol-enrich` | Supabase (pg_cron) | diario | completa agenda cuando WOL está disponible |
 | `drift-check` | Supabase (pg_cron) | semanal | reporta divergencias Zoom real vs. DB, nunca corrige |
+
+**Sin `wol-enrich` como job aparte** (revisado 2026-09-12, ver "Contenido
+desde wol.jw.org" arriba): el propio `reconcile` ya retoma `wol_unreachable`
+en su próxima corrida y ya emite `update` cuando el contenido de una
+ocurrencia sincronizada cambia — agregar una función diaria extra solo para
+esto no se justificaba frente al costo de mantenerla, dado que el contenido
+de WOL está disponible casi siempre dentro del horizonte de 1 mes.
+
+**Aislamiento entre schedules — pendiente de diseño para cuando se active
+el cron real (Fase 5)**: `reconcile` (la Edge Function) procesa un solo
+`scheduleId` por invocación; todavía no existe el driver que la dispare una
+vez por cada `meeting_schedules` activo (hoy son 2: entresemana y fin de
+semana). Cuando se implemente ese driver, tiene que disparar un
+`net.http_post` independiente por schedule (mismo patrón fire-and-forget
+verificado en el spike de pg_cron→pg_net de Fase 0) para que la falla de
+uno no bloquee al otro — nunca esperar la respuesta de un schedule antes de
+disparar el siguiente. Dentro de una misma invocación (un schedule, varias
+semanas del mes) esto ya está resuelto: `reconcileMonth` aísla cada semana
+en su propio `try/catch`.
 
 **Cómo se dispara `zoom-apply-browser` sin cron propio** (dos caminos,
 mismo principio que ya regía en el spec original — "el caso común se

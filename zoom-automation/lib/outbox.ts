@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export interface ZoomOutboxRow {
   id: number;
   occurrence_id: string;
-  action: "create" | "update" | "cancel" | "enrich_agenda";
+  action: "create" | "update" | "cancel";
   payload: {
     topic?: string;
     agenda?: string | null;

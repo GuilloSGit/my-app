@@ -76,15 +76,6 @@ describe("applyZoomJob", () => {
     expect(cancelMeeting).toHaveBeenCalledWith(111);
   });
 
-  it("enrich_agenda todavía no soportado: falla en vez de aplicarse a medias", async () => {
-    const client = fakeClient();
-    const job: ZoomOutboxJob = { id: 5, occurrenceId: "o1", action: "enrich_agenda", payload: {} };
-
-    const outcome = await applyZoomJob(client, job);
-
-    expect(outcome.ok).toBe(false);
-  });
-
   it("un error del cliente de Zoom se devuelve como { ok: false }, no se propaga", async () => {
     const createMeeting = vi.fn().mockRejectedValue(new Error("zoom createMeeting: 429 rate limited"));
     const client = fakeClient({ createMeeting });

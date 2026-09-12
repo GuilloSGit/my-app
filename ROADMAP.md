@@ -89,8 +89,21 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 
 ## Fase 3 — Enriquecimiento WOL
 
-- [ ] `wol-enrich`: caché por semana ISO, PATCH de agenda desacoplado de la creación
-- [ ] `wol_unreachable` (warning, no toca nada) y `wol_section_missing` (blocked) como paths separados
+> **Revisado 2026-09-12**: se verificó contra wol.jw.org real que publica
+> contenido con ~3.5 meses de anticipación (semanas 38 a 52 de 2026, todas
+> con títulos reales distintos) — muy por delante del horizonte de 1 mes de
+> `reconcile`. Esto descarta la necesidad de un job `wol-enrich` diario
+> aparte: el propio `reconcile` (cada 2 días, Fase 5) ya reintenta
+> `wol_unreachable` en la próxima corrida (esas semanas nunca se cachean) y
+> ya emite un job `update` (preserva `join_url`) cuando el contenido de una
+> ocurrencia ya sincronizada cambia — es el mismo mecanismo que haría un
+> "PATCH de agenda desacoplado", sin necesitar una Edge Function nueva. Ver
+> `ZOOM_AUTOMATION.md` para el detalle.
+
+- [x] Caché por semana ISO (`wol_week_cache`, ya implementado en Fase 1) y PATCH de agenda desacoplado de la creación (ya cubierto por `reconciler_upsert_occurrence`, que emite `update` en vez de `create` cuando la ocurrencia ya está sincronizada) — no hace falta job nuevo, ver nota arriba
+- [x] `wol_unreachable` (warning, no toca nada) y `wol_section_missing` (blocked) como paths separados — implementado y testeado desde Fase 1
+- [x] Limpieza: se sacó la acción `enrich_agenda` de `zoom_outbox` (schema, tipos, dispatch) — quedaba del diseño original sin ningún productor real
+- [ ] Completar el campo de descripción/agenda en el formulario real de Zoom vía Playwright (`zoom-automation/lib/zoom-browser.ts`, `createMeeting`/`updateMeeting`) — hoy el agenda se calcula y persiste en Postgres pero nunca llega al campo real de Zoom, falta el selector real (`TODO(codegen)` en el archivo)
 
 ## Fase 4 — UI
 

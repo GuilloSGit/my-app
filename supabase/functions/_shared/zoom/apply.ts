@@ -3,7 +3,7 @@ import type { ZoomClient, ZoomMeetingDesired, ZoomMeetingResult } from "./types.
 export interface ZoomOutboxJob {
   id: number;
   occurrenceId: string;
-  action: "create" | "update" | "cancel" | "enrich_agenda";
+  action: "create" | "update" | "cancel";
   payload: {
     topic?: string;
     agenda?: string | null;
@@ -50,12 +50,6 @@ export async function applyZoomJob(client: ZoomClient, job: ZoomOutboxJob): Prom
         await client.cancelMeeting(zoomMeetingId);
         return { ok: true, result: null };
       }
-      case "enrich_agenda":
-        // Todavía no implementado (Fase 3, wol-enrich). Si una fila con
-        // esta acción aparece antes de tiempo, falla ruidosamente y queda
-        // en 'failed' tras los reintentos, en vez de aplicarse mal o
-        // colgarse en 'pending' para siempre.
-        throw new Error(`acción enrich_agenda no soportada todavía (Fase 3) — job ${job.id}`);
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };

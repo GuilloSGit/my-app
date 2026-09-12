@@ -589,3 +589,67 @@ seguido. Requiere una Edge Function nueva (`zoom-apply-dispatch`) que
 llama a la API de GitHub Actions con un PAT guardado como secret de
 Supabase — diseño capturado en `ZOOM_AUTOMATION.md`/`ROADMAP.md`, todavía
 no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
+
+## 2026-09-12 (nueva sesión) — Fase 3: revisión de diseño y limpieza, sin job nuevo
+
+- **Verificación real antes de diseñar** (mismo principio que ya regía en
+  Fase 0): se hizo `curl` contra wol.jw.org para las semanas ISO 2026/38 a
+  2026/52 (~3.5 meses de anticipación desde hoy) y se parseó cada HTML con
+  la misma lógica de `parseWolHtml` — las ocho semanas devolvieron HTTP 200
+  con títulos reales y distintos (ej. semana 44: "Valoremos el privilegio
+  de darle a Jehová 'servicio sagrado sin temor'"). Conclusión: wol.jw.org
+  publica muy por delante del horizonte de 1 mes de `reconcile` — no hay
+  lag de publicación que un job `wol-enrich` diario tuviera que compensar.
+- **Decisión con el usuario**: en vez del job `wol-enrich` separado que
+  preveía el spec original, reusar `reconcile` (cada 2 días, Fase 5) para
+  todo. Justificación: `reconciler_upsert_occurrence` (Fase 1/2) ya emite
+  `update` en vez de `create` cuando una ocurrencia ya sincronizada cambia
+  de contenido (preserva `join_url`) — es exactamente el "PATCH de agenda
+  desacoplado" que pedía el spec, sin código nuevo. Y `wol_unreachable`
+  nunca se cachea, así que la próxima corrida de `reconcile` reintenta sola.
+  El beneficio de una corrida diaria extra frente a cada 2 días es marginal
+  dado el hallazgo de arriba, no justificaba mantener una función más.
+- **El usuario planteó, sin saber que ya estaba resuelto, dos requisitos
+  que ya cumplía el diseño de Fase 1/2** — se le confirmó con la traza real
+  del código en vez de asumir:
+  1. *"Que la ausencia de una reunión no frene la otra"*: ya cubierto
+     **dentro** de una invocación de `reconcile` (`reconcileMonth` aísla
+     cada semana en su propio `try/catch`, seguí con las demás si una
+     falla). **Gap real encontrado**: `reconcile` (la Edge Function) toma
+     un solo `scheduleId` por llamada — no existe todavía el driver que la
+     dispare una vez por cada schedule activo (hoy 2: entresemana/fin de
+     semana), porque eso es trabajo de Fase 5 (cron real), no implementado
+     aún. Documentado en `ZOOM_AUTOMATION.md` para resolverlo ahí con
+     `net.http_post` independientes por schedule (mismo patrón fire-and-
+     forget del spike de Fase 0), no bloquea Fase 3.
+  2. *"Que el contenido de WOL ya obtenido no se pierda si falla aplicar a
+     Zoom"*: ya cubierto — el contenido se cachea en `wol_week_cache` y se
+     persiste en el `payload` JSON de la fila de `zoom_outbox` en el mismo
+     paso que se decide (`reconciler_upsert_occurrence`); si `zoom-apply`
+     falla, `complete_zoom_job` reintenta con backoff sin volver a tocar
+     WOL, reaplicando el mismo payload ya resuelto.
+- **Limpieza de código muerto**: se sacó la acción `enrich_agenda` de
+  `zoom_outbox` — estaba en el schema (constraint), en los tipos
+  (`ZoomOutboxJob`, `ZoomOutboxRow`) y en el `switch` de tres lugares
+  (`_shared/zoom/apply.ts`, `zoom-apply/index.ts`, `zoom-automation/
+  apply.ts`, `zoom-automation/lib/outbox.ts`) pero **nunca tuvo productor
+  real** — `reconciler_upsert_occurrence` solo emite `create`/`update`.
+  Migración `20260912200000_drop_enrich_agenda_action.sql` (constraint),
+  aplicada al proyecto real con `supabase db push`; `zoom-apply` redeployada
+  con `--use-api` para reflejar el cambio (recordando el gotcha ya conocido:
+  cambiar `_shared/` no alcanza, hay que redeployar cada función que lo
+  importa). Test correspondiente en `apply.test.ts` eliminado (119/119
+  verdes, antes 120/120).
+- **Gap real identificado, pendiente de resolver**: el campo de
+  descripción/agenda del formulario de Zoom **nunca se completa** en
+  `zoom-automation/lib/zoom-browser.ts` (`createMeeting`/`updateMeeting`) —
+  ya estaba marcado con un `TODO(codegen)` desde Fase 2-bis porque la
+  grabación original no cargó ese campo. El agenda se calcula y persiste
+  bien en Postgres/outbox, pero nunca llega al campo real de Zoom. Falta el
+  selector real del campo — no se adivina a ciegas (mismo principio que ya
+  rigió toda la Fase 2-bis), pendiente de verificar contra la cuenta real.
+- **Verificación de código de esta sesión**: `npx tsc --noEmit` (raíz)
+  limpio, `npx tsc --noEmit -p zoom-automation/tsconfig.json` limpio,
+  `deno check` limpio sobre todos los módulos de `_shared/reconciler` y
+  `_shared/zoom` + `reconcile/index.ts` + `zoom-apply/index.ts`, `npm run
+  lint` limpio, `npm run test:run` en 119/119.

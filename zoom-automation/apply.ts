@@ -56,10 +56,6 @@ async function main() {
             await completeJob(supabase, job.id, { success: true });
             break;
           }
-          case "enrich_agenda":
-            // Todavía no implementado (Fase 3). Falla ruidosamente en vez
-            // de aplicarse mal o quedar colgado en 'pending' para siempre.
-            throw new Error(`acción enrich_agenda no soportada todavía (Fase 3) — job ${job.id}`);
         }
         console.log(`Job ${job.id} OK`);
       } catch (e) {
