@@ -202,9 +202,15 @@ my-app/
 ├── __tests__/              # Tests unitarios, integración y de componentes (Vitest)
 ├── e2e/                    # Tests E2E en navegador real (Playwright)
 ├── public/                 # Íconos, manifest, service worker
+├── supabase/               # Edge Functions + migraciones — automatización de
+│                           #   reuniones Zoom, en construcción. Ver ZOOM_AUTOMATION.md
 ├── vitest.config.ts
 └── playwright.config.ts
 ```
+
+> **Automatización de reuniones Zoom** (en construcción, no reemplaza el
+> flujo manual de arriba todavía): ver `ZOOM_AUTOMATION.md` (spec y
+> arquitectura), `ROADMAP.md` (fases) y `PROGRESS.md` (bitácora).
 
 ## Deploy
 

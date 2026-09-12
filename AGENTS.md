@@ -11,6 +11,13 @@ Leer, en este orden, lo que sea relevante a la tarea:
 2. `ARCHITECTURE.md` — estructura real del sistema y gotchas.
 3. `GITHUB_PAGES.md` — si la tarea toca deploy/CI.
 4. `ICONS_README.md` — si la tarea toca PWA/manifest/iconos.
+5. `ZOOM_AUTOMATION.md` + `ROADMAP.md` + `PROGRESS.md` (en ese orden) — si
+   la tarea toca la automatización de reuniones Zoom (`supabase/`). El
+   primero es el spec y el razonamiento (por qué), el segundo el checklist
+   de fases (qué falta), el tercero la bitácora cronológica (qué se hizo).
+   Vive en el **mismo** proyecto Supabase que ya usa la tabla `meetings`
+   (no uno separado), pero con un modelo de RLS distinto y más estricto —
+   no asumir que las convenciones de `lib/meetings.ts` aplican acá.
 
 No asumir nada sobre el flujo de deploy o de auth sin confirmarlo en estos
 docs primero — los tres tuvieron cambios importantes de arquitectura (mayo:
@@ -90,10 +97,13 @@ pantalla.
 ## Memoria de proyecto (fuera del repo)
 
 Hay memoria persistida en
-`~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`
+`~/.claude/projects/-Users-guillermoandrada-my-app/memory/`
 (`project_my_app.md`, `feedback_verify_before_push.md`) con contexto de
 sesiones anteriores — incidentes, decisiones tomadas, por qué. Consultarla si
-está disponible; no es parte del repo así que no se pushea.
+está disponible; no es parte del repo así que no se pushea. (El repo se movió
+de `.../Projects/my-app` a `.../my-app` en 2026-09 — la memoria vieja quedó
+en `~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`, ya
+migrada acá.)
 
 ## Cierre de sesión
 

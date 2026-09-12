@@ -21,8 +21,17 @@ Nombre npm: `zoom-links`. Sin backend propio: es una SPA estática (Next.js
 - Deploy estático en **GitHub Pages**, servido desde `/my-app`.
 
 No hay servidor propio, no hay API routes de Next en uso real: toda la
-lógica de datos vive en `lib/` hablando con el cliente de Supabase
-(`@supabase/supabase-js`) desde el navegador.
+lógica de datos de `meetings` vive en `lib/` hablando con el cliente de
+Supabase (`@supabase/supabase-js`) desde el navegador.
+
+**Excepción, en construcción (2026-09-12 en adelante):** la automatización
+de reuniones Zoom agrega lógica de servidor real, pero no como parte de
+Next.js — vive en `supabase/` (Supabase Edge Functions + Postgres, mismo
+proyecto que ya usa `meetings`). Ver `ZOOM_AUTOMATION.md` (spec y
+arquitectura completa), `ROADMAP.md` (fases) y `PROGRESS.md` (bitácora).
+Esta sección de arriba sigue describiendo correctamente el frontend
+estático y el flujo de `meetings` — no se reescribe hasta que esa feature
+esté completa y pase a ser el sistema autoritativo (Fase 5 del roadmap).
 
 ## Estructura de carpetas
 
@@ -169,3 +178,14 @@ sección `## Tests`):
   toggle del header como efecto colateral — pasó con el botón de WhatsApp
   compacto, que sin `stopPropagation` parecía "abrir edición" en vez de
   solo compartir.
+- **Nunca prefijar `NEXT_PUBLIC_` a una clave `service_role` u otro secreto
+  real.** Cualquier variable `NEXT_PUBLIC_*` se inlinea en el bundle del
+  cliente en `next build` — con `output: 'export'` eso significa que queda
+  publicada en texto plano en el sitio estático de GitHub Pages. Pasó el
+  2026-09-12: un `.env` local tenía `NEXT_PUBLIC_SB_SECRET_KEY` y
+  `NEXT_PUBLIC_SB_SERVICE_ROLE_TOKEN` (ambas `service_role`, bypassean RLS).
+  Además ese `.env` no estaba en `.gitignore` (solo `.env*.local` lo estaba) —
+  ya se agregó `.env` a `.gitignore`. Cualquier secreto real (service_role,
+  credenciales de Zoom, etc.) va sin prefijo `NEXT_PUBLIC_` y, para lo que se
+  está construyendo en la automatización de Zoom, vive como secret de
+  Supabase Edge Functions, nunca como env var de Next.js.

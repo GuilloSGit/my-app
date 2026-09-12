@@ -30,7 +30,7 @@ produce docs desincronizados entre sí.
 
 ## 1. Estado git
 
-Repo: `/Users/guillermoandrada/Projects/my-app`.
+Repo: `/Users/guillermoandrada/my-app`.
 
 ```bash
 git status --short
@@ -48,7 +48,11 @@ Pay Alert), mencionalo explícitamente.
 ## 2. Actualizar memoria del proyecto
 
 Memoria en:
-`~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`
+`~/.claude/projects/-Users-guillermoandrada-my-app/memory/`
+(el repo se movió de `.../Projects/my-app` a `.../my-app` — si alguna vez
+aparece contenido relevante en la ruta vieja
+`~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`,
+migrarlo acá, no seguir escribiendo en la vieja).
 
 Archivos existentes: `project_my_app.md` (estado del proyecto, incidentes,
 gotchas técnicos) y `feedback_verify_before_push.md` (hábito de verificación).
