@@ -545,6 +545,21 @@ Variables/Secrets, no asumir que solo se tocó lo que se quería) en
 `ARCHITECTURE.md`.
 
 Estado final de la sesión: Fase 2 pausada, Fase 2-bis verificada e
-implementada (falta solo correr el workflow real de `zoom-apply-browser`
-para confirmarlo en producción — no se llegó a hacer en esta sesión), sitio
-en producción restaurado y funcionando.
+implementada, sitio en producción restaurado y funcionando.
+
+## 2026-09-12 (cierre, continuación) — cron de zoom-apply-browser verificado
+
+Corrida manual (`gh workflow run zoom-apply-browser.yml`) del cron real —
+encontró un segundo bug real, no relacionado con Zoom: `@supabase/
+supabase-js` necesita WebSocket nativo para inicializar su
+`RealtimeClient` (aunque este script no use realtime), y falla con
+`Error: Node.js 20 detected without native WebSocket support` en Node 20.
+El workflow pedía `node-version: "20"` (copiado sin pensar del patrón de
+`deploy.yml`, que si necesita exactamente eso por Vitest 4 — pero
+`zoom-apply-browser.yml` es un workflow completamente aparte, sin esa
+restricción). Fix: bump a Node 22. Segunda corrida manual, verde de punta
+a punta: sesión restaurada, conexión a Supabase OK, **"Sin jobs pendientes
+en zoom_outbox"** (correcto — todavía no hay ningún `meeting_schedules`
+real cargado, eso es Fase 4). El cron de cada 10 minutos queda confirmado
+funcionando de punta a punta, listo para cuando haya jobs reales que
+procesar.
