@@ -28,7 +28,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # @supabase/supabase-js necesita WebSocket nativo para inicializar
+          # el RealtimeClient (aunque este script no use realtime) — falla
+          # con Node 20 ("Node.js 20 detected without native WebSocket
+          # support"). Node ≥22 lo tiene. No confundir con el Node 20 de
+          # deploy.yml (ese es un workflow distinto, sin esta restricción).
+          node-version: "22"
           cache: "npm"
 
       - name: Install dependencies
