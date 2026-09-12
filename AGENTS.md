@@ -36,6 +36,11 @@ npm run test:ui          # Vitest con interfaz visual
 npx playwright test       # E2E (una vez: `npx playwright install chromium`)
 npx playwright test --ui   # E2E paso a paso
 npx tsc --noEmit           # chequeo de tipos sin build completo
+
+# Automatización de Zoom por navegador (Fase 2-bis, ver ARCHITECTURE.md/ZOOM_AUTOMATION.md)
+npm run zoom:capture-session   # captura la sesión de Zoom a mano (correr localmente, nunca en CI)
+npm run zoom:apply             # drena zoom_outbox contra Zoom real vía Playwright (ZOOM_HEADFUL=1 para ver el navegador)
+npx tsc --noEmit -p zoom-automation/tsconfig.json   # typecheck de zoom-automation/ (excluido del tsconfig raíz)
 ```
 
 No hay setup local especial más allá de `npm install` — `.env.local` ya

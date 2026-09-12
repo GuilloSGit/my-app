@@ -27,11 +27,26 @@ Supabase (`@supabase/supabase-js`) desde el navegador.
 **Excepción, en construcción (2026-09-12 en adelante):** la automatización
 de reuniones Zoom agrega lógica de servidor real, pero no como parte de
 Next.js — vive en `supabase/` (Supabase Edge Functions + Postgres, mismo
-proyecto que ya usa `meetings`). Ver `ZOOM_AUTOMATION.md` (spec y
-arquitectura completa), `ROADMAP.md` (fases) y `PROGRESS.md` (bitácora).
-Esta sección de arriba sigue describiendo correctamente el frontend
-estático y el flujo de `meetings` — no se reescribe hasta que esa feature
-esté completa y pase a ser el sistema autoritativo (Fase 5 del roadmap).
+proyecto que ya usa `meetings`) **y** en `zoom-automation/` (script Node +
+Playwright standalone, fuera de Next y de Deno — ver más abajo). Ver
+`ZOOM_AUTOMATION.md` (spec y arquitectura completa), `ROADMAP.md` (fases) y
+`PROGRESS.md` (bitácora). Esta sección de arriba sigue describiendo
+correctamente el frontend estático y el flujo de `meetings` — no se
+reescribe hasta que esa feature esté completa y pase a ser el sistema
+autoritativo (Fase 5 del roadmap).
+
+**`zoom-automation/` (Fase 2-bis, 2026-09-12): la cuenta Zoom real de la
+congregación resultó ser una sub-cuenta administrada por una organización
+externa, sin permisos para crear apps en su Marketplace — la API REST de
+Zoom (Fase 2, `supabase/functions/zoom-apply`) quedó pausada por eso.**
+En su lugar, `zoom-automation/` maneja la UI web de Zoom con Playwright
+(que sí funciona con el rol de esta cuenta), corriendo vía
+`.github/workflows/zoom-apply-browser.yml` (cron, no Supabase — Playwright
+necesita un navegador real, que Deno Edge Functions no soporta). Consume
+el mismo `zoom_outbox`/`dequeue_zoom_jobs`/`complete_zoom_job` que la Edge
+Function pausada. Verificado de punta a punta contra la cuenta real.
+Detalle de los selectores/bugs encontrados en `ZOOM_AUTOMATION.md` y
+`PROGRESS.md` 2026-09-12.
 
 ## Estructura de carpetas
 
@@ -178,6 +193,20 @@ sección `## Tests`):
   toggle del header como efecto colateral — pasó con el botón de WhatsApp
   compacto, que sin `stopPropagation` parecía "abrir edición" en vez de
   solo compartir.
+- **"Variables" y "Secrets" de GitHub Actions no son lo mismo.** En
+  Settings → Secrets and variables → Actions hay dos pestañas separadas:
+  "Variables" guarda texto plano sin cifrar (siempre visible en esa
+  pantalla) y "Secrets" cifra el valor (no se vuelve a mostrar). Pasó el
+  2026-09-12: `SUPABASE_SERVICE_ROLE_KEY` se cargó por error en
+  "Variables" y quedó legible hasta que se movió a "Secrets". Cualquier
+  valor sensible (`service_role`, tokens, sesiones) va siempre en
+  "Secrets".
+- **Un secret de GitHub Actions tiene un límite de tamaño más chico de lo
+  que sugiere la documentación** ("64 KB" documentado; en la práctica, un
+  valor de ~50 KB ya dio "too large"). Si hace falta guardar un blob
+  grande (ej. una sesión de browser serializada), partirlo en varios
+  secrets de ~20 KB y concatenarlos en el workflow antes de usarlos — ver
+  `.github/workflows/zoom-apply-browser.yml`.
 - **Nunca prefijar `NEXT_PUBLIC_` a una clave `service_role` u otro secreto
   real.** Cualquier variable `NEXT_PUBLIC_*` se inlinea en el bundle del
   cliente en `next build` — con `output: 'export'` eso significa que queda
