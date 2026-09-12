@@ -640,16 +640,33 @@ no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
   cambiar `_shared/` no alcanza, hay que redeployar cada función que lo
   importa). Test correspondiente en `apply.test.ts` eliminado (119/119
   verdes, antes 120/120).
-- **Gap real identificado, pendiente de resolver**: el campo de
-  descripción/agenda del formulario de Zoom **nunca se completa** en
-  `zoom-automation/lib/zoom-browser.ts` (`createMeeting`/`updateMeeting`) —
-  ya estaba marcado con un `TODO(codegen)` desde Fase 2-bis porque la
-  grabación original no cargó ese campo. El agenda se calcula y persiste
-  bien en Postgres/outbox, pero nunca llega al campo real de Zoom. Falta el
-  selector real del campo — no se adivina a ciegas (mismo principio que ya
-  rigió toda la Fase 2-bis), pendiente de verificar contra la cuenta real.
+- **Campo de agenda implementado, con autorización explícita del usuario
+  para inspeccionar la cuenta real** (solo lectura, sin guardar nada):
+  reusando la sesión ya capturada horas antes, se abrió el form real de
+  "Schedule a Meeting" y se encontró que el campo no está visible de
+  entrada — hay un botón **"Add Description"** que revela un
+  `<textarea aria-label="Add Description" id="agenda">`. Implementado como
+  `setAgenda()` en `zoom-browser.ts`, usado en `createMeeting` y
+  `updateMeeting` (si ya está visible —ej. reunión con agenda previa—, no
+  hace falta clickear el botón; si `agenda` es `null`, no se toca nada).
+- **Verificación end-to-end BLOQUEADA por expiración de sesión, no
+  completada**: con autorización explícita del usuario para correr una
+  prueba real (crear → releer → cancelar, mismo patrón que el resto de
+  Fase 2-bis), el intento de `createMeeting` falló al primer paso
+  (`Schedule a Meeting` nunca apareció, la captura mostró la pantalla de
+  login). Se confirmó aparte que la sesión efectivamente expiró: la misma
+  `zoom-storage-state.json` que minutos antes cargó `/profile` sin
+  problema ahora redirige a `/signin`. **Gotcha nuevo**: la sesión puede
+  invalidarse en minutos, no solo "en algún momento no documentado" como
+  ya se sabía — no asumir que sigue viva solo porque funcionó hace poco en
+  la misma sesión de trabajo. El selector del campo de agenda quedó
+  verificado contra el DOM real (la inspección sí llegó a completarse
+  antes de que la sesión expirara), pero el ciclo completo de guardado
+  contra Zoom real **todavía no está confirmado** — pendiente recapturar
+  sesión (`npm run zoom:capture-session`) y repetir la prueba real antes de
+  confiar en esto para el cron.
 - **Verificación de código de esta sesión**: `npx tsc --noEmit` (raíz)
   limpio, `npx tsc --noEmit -p zoom-automation/tsconfig.json` limpio,
   `deno check` limpio sobre todos los módulos de `_shared/reconciler` y
   `_shared/zoom` + `reconcile/index.ts` + `zoom-apply/index.ts`, `npm run
-  lint` limpio, `npm run test:run` en 119/119.
+  lint` limpio, `npm run test:run` en 119/119, `npm run build` limpio.

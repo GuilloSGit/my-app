@@ -181,6 +181,24 @@ export class ZoomBrowserClient {
     }
   }
 
+  // Campo real verificado contra el DOM (2026-09-12, sesión Playwright
+  // aparte, solo inspección sin guardar): el form arranca con un botón
+  // "Add Description" que revela un <textarea aria-label="Add
+  // Description" id="agenda"> — no está visible de entrada. Si ya está
+  // visible (ej. reunión existente que ya tiene agenda cargada), no hace
+  // falta clickear el botón; si el agenda deseado es null, no se toca nada
+  // (el desacople creación/contenido: crear sin agenda es válido).
+  private async setAgenda(page: Page, agenda: string | null): Promise<void> {
+    if (agenda === null) return;
+
+    const textarea = page.getByRole("textbox", { name: "Add Description" });
+    if (!(await waitVisible(textarea, 500))) {
+      await page.getByRole("button", { name: "Add Description" }).click();
+      await textarea.waitFor({ state: "visible", timeout: 3000 });
+    }
+    await textarea.fill(agenda);
+  }
+
   // Abre "Copy Invitation" en la página de detalle de una reunión ya
   // creada y devuelve join_url/passcode/meetingId parseados del texto.
   private async readInvitation(page: Page): Promise<{ joinUrl: string; passcode: string | null; meetingId: number }> {
@@ -203,12 +221,7 @@ export class ZoomBrowserClient {
       await this.setDate(page, desired.startsAt, desired.timezone);
       await this.setStartTime(page, desired.startsAt, desired.timezone);
       await this.setDuration(page, desired.durationMinutes);
-
-      // TODO(codegen): campo de descripción/agenda no aparece en la
-      // grabación (el flujo grabado no cargó agenda) — si existe un campo
-      // "Description"/"Agenda" en el form, agregarlo acá. Por ahora el
-      // agenda no se aplica en la creación (queda para Fase 3, wol-enrich,
-      // que hace un PATCH aparte una vez que hay contenido).
+      await this.setAgenda(page, desired.agenda);
 
       // TODO(codegen): el botón de confirmar no quedó grabado (el codegen
       // saltó directo a la URL resultante) — asumido "Save" por analogía
@@ -242,6 +255,7 @@ export class ZoomBrowserClient {
       await this.setDate(page, desired.startsAt, desired.timezone);
       await this.setStartTime(page, desired.startsAt, desired.timezone);
       await this.setDuration(page, desired.durationMinutes);
+      await this.setAgenda(page, desired.agenda);
 
       await page.getByRole("button", { name: "Save" }).click();
       // La URL de edición ya matchea /meeting/\d+ ANTES de guardar (no hay

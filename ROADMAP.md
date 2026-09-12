@@ -103,7 +103,8 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 - [x] Caché por semana ISO (`wol_week_cache`, ya implementado en Fase 1) y PATCH de agenda desacoplado de la creación (ya cubierto por `reconciler_upsert_occurrence`, que emite `update` en vez de `create` cuando la ocurrencia ya está sincronizada) — no hace falta job nuevo, ver nota arriba
 - [x] `wol_unreachable` (warning, no toca nada) y `wol_section_missing` (blocked) como paths separados — implementado y testeado desde Fase 1
 - [x] Limpieza: se sacó la acción `enrich_agenda` de `zoom_outbox` (schema, tipos, dispatch) — quedaba del diseño original sin ningún productor real
-- [ ] Completar el campo de descripción/agenda en el formulario real de Zoom vía Playwright (`zoom-automation/lib/zoom-browser.ts`, `createMeeting`/`updateMeeting`) — hoy el agenda se calcula y persiste en Postgres pero nunca llega al campo real de Zoom, falta el selector real (`TODO(codegen)` en el archivo)
+- [x] Completar el campo de descripción/agenda en `zoom-browser.ts` — selector real verificado contra el DOM (botón "Add Description" revela un `<textarea id="agenda">`), implementado en `createMeeting`/`updateMeeting`
+- [ ] **Verificación end-to-end contra la cuenta real, pendiente**: la sesión capturada expiró en medio de la prueba (minutos después de haber funcionado para la inspección) — hace falta `npm run zoom:capture-session` de nuevo y repetir crear→releer→cancelar con agenda antes de confiar en esto para el cron
 
 ## Fase 4 — UI
 
