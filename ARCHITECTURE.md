@@ -193,6 +193,19 @@ sección `## Tests`):
   toggle del header como efecto colateral — pasó con el botón de WhatsApp
   compacto, que sin `stopPropagation` parecía "abrir edición" en vez de
   solo compartir.
+- **Al limpiar "Variables" tras mover algo a "Secrets", cuidado con nombres
+  parecidos.** El 2026-09-12, al mover `SUPABASE_URL` (nueva, para
+  `zoom-automation/`) de Variables a Secrets, se borró por error también
+  `NEXT_PUBLIC_SUPABASE_URL` (la que sí necesita el build de producción,
+  usada en `.github/workflows/deploy.yml` vía `${{ vars.NEXT_PUBLIC_SUPABASE_URL }}`)
+  — nombres parecidos, variable equivocada borrada. El deploy siguiente
+  falló en el build con `Error: supabaseUrl is required.` al prerenderizar
+  `/`, `/login` y `/dashboard`. Fix: recrear la Variable
+  (`gh variable set NEXT_PUBLIC_SUPABASE_URL --body "..."`, valor en
+  `.env` local) y re-correr el workflow (`gh workflow run deploy.yml`).
+  **Después de tocar Variables/Secrets por cualquier motivo, correr
+  `gh variable list` y comparar contra lo esperado antes de asumir que
+  solo se tocó lo que se quería.**
 - **"Variables" y "Secrets" de GitHub Actions no son lo mismo.** En
   Settings → Secrets and variables → Actions hay dos pestañas separadas:
   "Variables" guarda texto plano sin cifrar (siempre visible en esa

@@ -521,3 +521,30 @@
   cargados de "Variables" a "Secrets", cargar
   `ZOOM_SESSION_STATE_B64_1`/`_2` (dos secrets nuevos, ya generados y
   listos), y recién ahí el cron queda activo.
+- **Los 7 secrets quedaron cargados y confirmados** (`gh secret list`):
+  `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`,
+  `ZOOM_SESSION_STATE_B64_1..5`.
+
+## 2026-09-12 (cierre) — incidente real durante el cierre: deploy roto
+
+Al cerrar la sesión, el primer push post-Fase-2/2-bis rompió el deploy de
+producción: `test` pasó pero `build` falló con `Error: supabaseUrl is
+required.` al prerenderizar `/`, `/login` y `/dashboard`. Causa: al mover
+`SUPABASE_URL` (la nueva, sin prefijo, para `zoom-automation/`) de
+"Variables" a "Secrets", se borró por error también
+**`NEXT_PUBLIC_SUPABASE_URL`** (nombre parecido, variable equivocada —
+esa sí la necesita el build de producción, `.github/workflows/deploy.yml`
+la lee como `${{ vars.NEXT_PUBLIC_SUPABASE_URL }}`). Detectado corriendo
+`gh variable list` y comparando contra lo esperado, no asumiendo que "ya
+está" solo porque el commit y el push habían salido bien. Fix: recreada la
+Variable con `gh variable set` (valor tomado del `.env` local, no
+sensible), y re-disparado el deploy con `gh workflow run deploy.yml` —
+segunda corrida en verde (`test` ✓, `build` ✓, `deploy` ✓). Detalle
+completo (y la regla general: correr `gh variable list` después de tocar
+Variables/Secrets, no asumir que solo se tocó lo que se quería) en
+`ARCHITECTURE.md`.
+
+Estado final de la sesión: Fase 2 pausada, Fase 2-bis verificada e
+implementada (falta solo correr el workflow real de `zoom-apply-browser`
+para confirmarlo en producción — no se llegó a hacer en esta sesión), sitio
+en producción restaurado y funcionando.
