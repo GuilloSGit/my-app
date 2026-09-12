@@ -320,10 +320,13 @@ fallar porque la sesión lo redirige al login.
   (`zoom-automation/.session/failures/`, subida como artifact de GitHub
   Actions cuando el workflow falla).
 - `.github/workflows/zoom-apply-browser.yml` — cron cada 10 minutos +
-  `workflow_dispatch`. Restaura la sesión desde el secret
-  `ZOOM_SESSION_STATE_B64` (base64 del archivo de `capture-session.ts`),
-  corre `npm run zoom:apply` con `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`
-  como secrets del repo, y sube capturas de pantalla si algo falla.
+  `workflow_dispatch`. Restaura la sesión concatenando los secrets
+  `ZOOM_SESSION_STATE_B64_1`+`ZOOM_SESSION_STATE_B64_2` (base64 del archivo
+  de `capture-session.ts`, partido en dos — un solo secret de GitHub no
+  alcanza, límite 64 KB, y el archivo en base64 pesa ~100 KB incluso
+  filtrado a solo cookies de `*.zoom.us`), corre `npm run zoom:apply` con
+  `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` como secrets del repo, y sube
+  capturas de pantalla si algo falla.
 
 ### Trade-off aceptado a propósito: dónde vive `SUPABASE_SERVICE_ROLE_KEY` ahora
 
@@ -382,11 +385,13 @@ después). Hallazgos y fixes durante la verificación:
 
 ### Pendiente para activar el cron desatendido
 
-1. Cargar `ZOOM_SESSION_STATE_B64` (base64 de
-   `zoom-automation/.session/zoom-storage-state.json`, ya capturada y
-   verificada), `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` como secrets
-   del repo en GitHub — el usuario lo hace él mismo desde GitHub, nunca
-   pegando esos valores en el chat.
+1. Cargar `ZOOM_SESSION_STATE_B64_1`/`ZOOM_SESSION_STATE_B64_2` (base64 de
+   `zoom-automation/.session/zoom-storage-state.json` partido en dos —
+   un solo secret no alcanza, ver "Gotcha: límite de tamaño" en
+   PROGRESS.md 2026-09-12), `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`
+   como **Secrets** del repo en GitHub (pestaña "Secrets", no "Variables"
+   — son cosas distintas, "Variables" no cifra nada) — el usuario lo hace
+   él mismo desde GitHub, nunca pegando esos valores en el chat.
 2. Activar el cron de `.github/workflows/zoom-apply-browser.yml`.
 3. Monitorear las primeras corridas reales (contra el outbox real, no
    reuniones de prueba) antes de confiar en que corra sola indefinidamente.

@@ -4,9 +4,13 @@ name: Zoom apply (navegador)
 # falta de permisos de cuenta): drena supabase/zoom_outbox manejando un
 # navegador real (Playwright) contra la UI web de Zoom, reusando una sesión
 # ya logueada a mano (ver zoom-automation/capture-session.ts y
-# ZOOM_AUTOMATION.md). No se activa sola hasta que exista el secret
-# ZOOM_SESSION_STATE_B64 — sin él, este workflow falla rápido y no hace nada
-# destructivo.
+# ZOOM_AUTOMATION.md). No se activa sola hasta que existan los secrets
+# ZOOM_SESSION_STATE_B64_1/_2 — sin ellos, este workflow falla rápido y no
+# hace nada destructivo.
+#
+# La sesión en base64 no entra en un solo secret de GitHub (incluso partida
+# en dos de ~50 KB dio "too large" — el límite real resultó más chico de
+# lo documentado) — se partió en 5 pedazos de ~20 KB y se reconstruye acá.
 
 on:
   schedule:
@@ -36,7 +40,13 @@ jobs:
       - name: Restaurar sesión de Zoom
         run: |
           mkdir -p zoom-automation/.session
-          echo "${{ secrets.ZOOM_SESSION_STATE_B64 }}" | base64 -d > zoom-automation/.session/zoom-storage-state.json
+          printf '%s%s%s%s%s' \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_1 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_2 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_3 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_4 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_5 }}" \
+            | base64 -d > zoom-automation/.session/zoom-storage-state.json
 
       - name: Aplicar jobs pendientes contra Zoom
         env:

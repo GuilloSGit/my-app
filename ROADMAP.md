@@ -84,7 +84,7 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 - [x] Sesión capturada y verificada como autenticada contra `zoom.us/profile`
 - [x] `npx playwright codegen` grabado por el usuario (crear/editar/cancelar) — selectores reales trasladados a `zoom-browser.ts`
 - [x] **`createMeeting`/`updateMeeting`/`cancelMeeting` verificados de punta a punta contra la cuenta real** (autorización explícita del usuario para esta sesión) — ciclo completo crear→editar→cancelar confirmado releyendo la página de detalle en cada paso, no solo confiando en que el click no tirara error. Encontrados y arreglados: `networkidle` poco confiable en este SPA, timing entre comboboxes de duración, formato real del combobox de hora (24hs, texto libre), y el bug más importante — la página se cerraba antes de que la request de guardar/borrar terminara, dejando el cambio sin aplicar pese a "éxito" aparente. Ver detalle en `ZOOM_AUTOMATION.md`/`PROGRESS.md`.
-- [ ] **Bloqueado en el usuario para activar el cron**: cargar `ZOOM_SESSION_STATE_B64`/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` como secrets del repo en GitHub (nunca por el chat)
+- [ ] **Bloqueado en el usuario para activar el cron**: cargar `ZOOM_SESSION_STATE_B64_1`/`ZOOM_SESSION_STATE_B64_2` (la sesión en base64 no entra en un solo secret de GitHub, límite 64 KB — se parte en dos)/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` como **Secrets** del repo en GitHub (no como "Variables" — son cosas distintas, ver PROGRESS.md 2026-09-12) (nunca por el chat)
 - [ ] Monitorear las primeras corridas reales del cron (contra el outbox real) antes de confiar en que corra sola indefinidamente
 
 ## Fase 3 — Enriquecimiento WOL

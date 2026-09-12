@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
+import { zoomOnlyStorageState } from "./lib/trim-session";
 
 // Script de un solo uso, corrido A MANO en tu máquina — NUNCA en CI. Abre un
 // navegador real y visible para que te loguees vos mismo en Zoom con tus
@@ -39,7 +40,12 @@ async function main() {
   await rl.question("Presioná ENTER cuando ya estés logueado en Zoom... ");
   rl.close();
 
-  await context.storageState({ path: SESSION_FILE });
+  // Se filtra a solo cookies/localStorage de *.zoom.us antes de guardar —
+  // sin esto el archivo pesa más de lo que GitHub Actions acepta como
+  // secret (límite 64 KB) por el rastreo de terceros que arrastra la
+  // sesión del browser (ver lib/trim-session.ts).
+  const trimmed = await zoomOnlyStorageState(context);
+  writeFileSync(SESSION_FILE, JSON.stringify(trimmed, null, 2));
   console.log(`\nSesión guardada en ${SESSION_FILE}.`);
   console.log("Ese archivo NUNCA se commitea (ya está en .gitignore).");
   console.log("Para usarlo en GitHub Actions, hay que codificarlo en base64 y");

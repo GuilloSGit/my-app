@@ -480,7 +480,44 @@
   `npm run test:run` en 120/120 (sin tests nuevos — este código maneja un
   navegador real contra un servicio externo, se verifica de punta a punta
   a mano, no con Vitest).
-- **Pendiente real, no more selectores**: cargar los tres secrets en
-  GitHub (`ZOOM_SESSION_STATE_B64`, `SUPABASE_URL`,
-  `SUPABASE_SERVICE_ROLE_KEY`) y activar el cron — bloqueado en el
-  usuario, nunca por el chat.
+- **Commit armado** (`851cdce`) con Fase 2 + Fase 2-bis, sin línea
+  Co-Authored-By (pedido explícito del usuario, ver
+  `feedback_no_coauthor_line`). No se hizo push.
+
+## 2026-09-12 (continuación 2) — cargando los secrets: dos gotchas reales
+
+- **Gotcha 1 — "Variables" no es "Secrets"**: el usuario cargó
+  `SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_URL`/`ZOOM_SESSION_STATE_B64` en
+  la pestaña **"Variables"** de GitHub Actions en vez de **"Secrets"** —
+  son dos cosas distintas; "Variables" guarda texto plano sin cifrar y
+  visible siempre en la UI de settings, "Secrets" cifra el valor y no lo
+  vuelve a mostrar. Detectado por una captura de pantalla del usuario
+  mostrando `SUPABASE_SERVICE_ROLE_KEY` completamente legible en la tabla.
+  Corregido: se le indicó mover los tres a la pestaña "Secrets" y borrar
+  las filas de "Variables". Riesgo real bajo (repo privado, expuesto pocos
+  minutos), se ofreció rotar la key desde Supabase como precaución
+  opcional, no obligatoria.
+- **Gotcha 2 — límite de tamaño de un secret de GitHub Actions (64 KB)**:
+  al cargar `ZOOM_SESSION_STATE_B64` como Secret, GitHub rechazó el valor
+  por "too large". La sesión capturada sin filtrar pesaba 90.612 bytes
+  (≈118 KB en base64). Se filtró `capture-session.ts` (y el archivo ya
+  capturado, sin pedirle al usuario loguearse de nuevo) para guardar solo
+  cookies/localStorage de dominios `*.zoom.us` — filtrado seguro porque
+  las cookies son estrictamente scoped por dominio, así que todo lo que no
+  sea `*.zoom.us` (Amazon Ads, Bing, LinkedIn, DoubleClick, StackAdapt,
+  etc., capturado sin querer por scripts de marketing corriendo en la
+  misma sesión de browser) nunca se manda igual en un request a Zoom —
+  sacarlo no puede romper la sesión. Bajó de 127 a 75 cookies, pero el
+  archivo resultante (75.040 bytes, ~100 KB en base64) **igual superaba el
+  límite de 64 KB** — filtrar más agresivo por nombre de cookie individual
+  se descartó por ser adivinar cuáles son necesarias para la autenticación
+  (riesgo real de romper una sesión ya validada, sin forma barata de
+  probarlo sin re-loguearse). Solución: partir el base64 en dos secrets
+  (`ZOOM_SESSION_STATE_B64_1`/`_2`, ~50 KB cada uno) y concatenarlos en el
+  workflow antes de decodificar (`printf '%s%s' "$secret1" "$secret2" |
+  base64 -d`) — estándar para este límite conocido de GitHub, sin
+  necesidad de adivinar nada sobre el contenido de las cookies.
+- **Pendiente real**: el usuario tiene que mover los tres secrets ya
+  cargados de "Variables" a "Secrets", cargar
+  `ZOOM_SESSION_STATE_B64_1`/`_2` (dos secrets nuevos, ya generados y
+  listos), y recién ahí el cron queda activo.
