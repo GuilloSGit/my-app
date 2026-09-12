@@ -575,3 +575,17 @@ el trigger `schedule:`, el workflow queda solo con `workflow_dispatch`
 tiene sentido. **Lección**: no activar un cron de "consumidor" antes de
 que exista el "productor" que lo alimente, aunque el consumidor en sí
 funcione perfecto.
+
+**Propuesta del usuario, adoptada como el plan de Fase 4/5**: en vez de
+un cron de `zoom-apply-browser` corriendo seguido (caro en minutos de CI),
+`reconcile` pasa a cada 2 días (no diario) y se agrega un botón
+"Sincronizar ahora" en el admin UI (Fase 4) que dispara el apply casi al
+instante — la cadencia de 2 días queda como backstop de baja frecuencia,
+no como el único disparador. Encaja con el principio que ya tenía el spec
+original ("el caso común se aplica en segundos, el cron es solo
+backstop"), adaptado al hecho de que ahora "aplicar" corre en GitHub
+Actions (Playwright/Chromium), no en una Edge Function barata de invocar
+seguido. Requiere una Edge Function nueva (`zoom-apply-dispatch`) que
+llama a la API de GitHub Actions con un PAT guardado como secret de
+Supabase — diseño capturado en `ZOOM_AUTOMATION.md`/`ROADMAP.md`, todavía
+no implementado (es trabajo de Fase 4/5, la UI no existe todavía).

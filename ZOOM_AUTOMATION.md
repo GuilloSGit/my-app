@@ -553,18 +553,45 @@ job reintenta.
 
 ---
 
-## Jobs (Fase 5, todavía no implementado)
+## Jobs (Fase 5, todavía no implementado) — revisado 2026-09-12 tras el pivot a Fase 2-bis
 
-| Job | Función | Horario | Qué hace |
+El spec original asumía que `zoom-apply` era una Edge Function (barata de
+llamar seguido, cron cada 2 minutos con sentido). Con el pivot a
+Playwright (Fase 2-bis), "aplicar" corre en GitHub Actions con un
+runner completo + Chromium — un cron cada 2 minutos ahí sería un
+desperdicio real de minutos de CI (ya pasó una vez: se activó de más
+contra una cola vacía, ver PROGRESS.md 2026-09-12, y el usuario
+preguntó "¿cron cada 10 min para qué?"). Plan revisado, propuesto por el
+usuario:
+
+| Job | Dónde corre | Horario | Qué hace |
 |---|---|---|---|
-| reconcile | `reconcile` | `0 6 * * *` (diario) | escaneo de 1 mes, encola |
-| zoom-apply-poll | `zoom-apply` | `*/2 * * * *` | drena el outbox en lotes chicos |
-| wol-enrich | `wol-enrich` | `30 6 * * *` (diario) | completa agenda cuando WOL está disponible |
-| drift-check | `drift-check` | `0 7 * * 1` (semanal) | reporta divergencias Zoom real vs. DB, nunca corrige |
+| `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola en `zoom_outbox` |
+| `zoom-apply-browser` | GitHub Actions | **sin cron propio** | drena el outbox manejando el navegador |
+| `wol-enrich` | Supabase (pg_cron) | diario | completa agenda cuando WOL está disponible |
+| `drift-check` | Supabase (pg_cron) | semanal | reporta divergencias Zoom real vs. DB, nunca corrige |
 
-`reconcile`/`schedule-write` disparan además un `fetch` fire-and-forget a
-`zoom-apply` apenas encolan, para que el caso común (guardar un cambio) se
-aplique en segundos; el cron de 2 minutos es el backstop.
+**Cómo se dispara `zoom-apply-browser` sin cron propio** (dos caminos,
+mismo principio que ya regía en el spec original — "el caso común se
+aplica en segundos, el backstop de baja frecuencia cubre el resto" — solo
+que el backstop ahora es cada 2 días, no cada 2 minutos, porque correrlo
+más seguido ya no es gratis):
+
+1. **Botón "Sincronizar ahora" en el admin UI (Fase 4)**: llama a una
+   Edge Function nueva y chica (`zoom-apply-dispatch`) que dispara el
+   workflow de GitHub Actions vía la API REST de GitHub
+   (`POST /repos/{owner}/{repo}/actions/workflows/zoom-apply-browser.yml/dispatches`),
+   usando un GitHub Personal Access Token (scope `workflow`) guardado como
+   secret de Supabase — **nunca en el frontend ni pedido por el chat**, el
+   usuario lo genera y lo carga él mismo (`supabase secrets set
+   GITHUB_PAT=...`), mismo patrón que toda credencial real de este
+   proyecto. Da sync casi instantáneo cuando el admin edita algo.
+2. **Backstop automático cada 2 días**: al terminar su corrida, el propio
+   `reconcile` dispara el mismo `zoom-apply-dispatch` (fire-and-forget,
+   igual que el spec original preveía para la Edge Function `zoom-apply`
+   pausada) — así lo que quedó pendiente sin que nadie apretara el botón
+   igual se aplica, sin necesitar un cron de GitHub Actions corriendo
+   seguido.
 
 `drift-check` es barato y avisa temprano de que la regla "no se toca desde
 Zoom" se rompió — no corrige automáticamente, reporta.

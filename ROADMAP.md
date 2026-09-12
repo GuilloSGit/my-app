@@ -95,6 +95,7 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 ## Fase 4 — UI
 
 - [ ] Vista de mes (admin-only): fila por semana, chip de estado, join_url
+- [ ] **Botón "Sincronizar ahora"** (propuesto por el usuario 2026-09-12): dispara `zoom-apply-dispatch` (Edge Function nueva) → GitHub Actions API → corre `zoom-apply-browser` casi al instante, en vez de esperar al backstop de 2 días. Ver "Jobs" en `ZOOM_AUTOMATION.md` para el diseño completo.
 - [ ] Acciones de un clic sobre filas bloqueadas: Marcar Asamblea, Marcar Conmemoración, Crear igual sin contenido, Cancelar esta reunión, Mover a otro día
 - [ ] Form de excepción con los defaults acordados (asamblea suprime ambas siempre; evento especial pre-marca por event_days, editable)
 - [ ] Editor de horario con preview en texto plano antes de guardar (no opcional)
@@ -102,7 +103,9 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 
 ## Fase 5 — Cron real + drift-check + retiro del flujo manual
 
-- [ ] Activar cron para las 4 funciones (reconcile diario, zoom-apply cada 2min, wol-enrich diario, drift-check semanal)
+- [ ] Activar cron de `reconcile` cada 2 días (no diario — revisado 2026-09-12, ver `ZOOM_AUTOMATION.md`), `wol-enrich` diario, `drift-check` semanal — los tres en Supabase (pg_cron)
+- [ ] **`zoom-apply-browser` sin cron propio de GitHub Actions** (correrlo seguido es gasto real de minutos de CI para un runner con Chromium) — se dispara por el botón de Fase 4 y por `reconcile` al terminar (fire-and-forget vía `zoom-apply-dispatch`), nunca por schedule automático
+- [ ] `zoom-apply-dispatch`: Edge Function que llama a la GitHub Actions API con un PAT (`GITHUB_PAT`, scope `workflow`) guardado como secret de Supabase — el usuario lo genera y carga él mismo, nunca por el chat
 - [ ] `drift-check` reporta divergencias, nunca corrige solo
 - [ ] Retirar `zoom-import-dialog.tsx`/`lib/zoom-parser.ts` del flujo principal (fallback documentado un ciclo más antes de borrar)
 - [ ] Actualizar README/ARCHITECTURE/AGENTS como sistema autoritativo
