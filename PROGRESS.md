@@ -649,22 +649,37 @@ no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
   `setAgenda()` en `zoom-browser.ts`, usado en `createMeeting` y
   `updateMeeting` (si ya está visible —ej. reunión con agenda previa—, no
   hace falta clickear el botón; si `agenda` es `null`, no se toca nada).
-- **Verificación end-to-end BLOQUEADA por expiración de sesión, no
-  completada**: con autorización explícita del usuario para correr una
-  prueba real (crear → releer → cancelar, mismo patrón que el resto de
-  Fase 2-bis), el intento de `createMeeting` falló al primer paso
-  (`Schedule a Meeting` nunca apareció, la captura mostró la pantalla de
-  login). Se confirmó aparte que la sesión efectivamente expiró: la misma
+- **Primer intento de verificación end-to-end BLOQUEADO por expiración de
+  sesión**: con autorización explícita del usuario, el intento de
+  `createMeeting` falló al primer paso (`Schedule a Meeting` nunca
+  apareció, la captura mostró la pantalla de login) — la misma
   `zoom-storage-state.json` que minutos antes cargó `/profile` sin
-  problema ahora redirige a `/signin`. **Gotcha nuevo**: la sesión puede
+  problema pasó a redirigir a `/signin`. **Gotcha nuevo**: la sesión puede
   invalidarse en minutos, no solo "en algún momento no documentado" como
   ya se sabía — no asumir que sigue viva solo porque funcionó hace poco en
-  la misma sesión de trabajo. El selector del campo de agenda quedó
-  verificado contra el DOM real (la inspección sí llegó a completarse
-  antes de que la sesión expirara), pero el ciclo completo de guardado
-  contra Zoom real **todavía no está confirmado** — pendiente recapturar
-  sesión (`npm run zoom:capture-session`) y repetir la prueba real antes de
-  confiar en esto para el cron.
+  la misma sesión de trabajo.
+- **Recaptura de sesión con un problema real de tooling, resuelto**: el
+  usuario corrió `npm run zoom:capture-session` backgroundeándolo él mismo
+  desde una interfaz sin terminal interactiva — el proceso quedó con
+  `stdin` apuntando a `/dev/null` (visible en `ps aux`, `< /dev/null` en el
+  comando), así que el `readline.question()` que espera el ENTER nunca iba
+  a poder recibirlo, quedando colgado para siempre. Se mató el proceso y se
+  relanzó manejando el `stdin` con un FIFO propio (`mkfifo`, `exec
+  3<>fifo`, stdin del script apuntado a ese fd) para poder mandarle el
+  ENTER (`echo "" > fifo`) recién después de que el usuario confirmara el
+  login real en el Chromium visible — evita el bloqueo de abrir un FIFO en
+  modo solo-lectura (bloquearía el arranque del proceso hasta que alguien
+  escriba) y el problema original de `/dev/null` a la vez. Sesión nueva
+  guardada con éxito.
+- **Verificación end-to-end CONFIRMADA con la sesión nueva**: ciclo real
+  crear (con agenda) → releer desde una sesión Playwright aparte → cancelar
+  → confirmar que ya no existe, sobre la cuenta real. El texto de la
+  agenda ("TEST AGENDA — verificación Fase 3") apareció en el detalle real
+  de la reunión creada, confirmando que `setAgenda()` (el botón "Add
+  Description" + el `<textarea id="agenda">`) funciona de punta a punta. La
+  reunión de prueba se canceló y se confirmó su desaparición (sin link
+  "Edit", sin rastro del texto) antes de cerrar. Sin reuniones de prueba
+  quedando en la cuenta al terminar.
 - **Verificación de código de esta sesión**: `npx tsc --noEmit` (raíz)
   limpio, `npx tsc --noEmit -p zoom-automation/tsconfig.json` limpio,
   `deno check` limpio sobre todos los módulos de `_shared/reconciler` y

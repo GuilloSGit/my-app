@@ -104,7 +104,9 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 - [x] `wol_unreachable` (warning, no toca nada) y `wol_section_missing` (blocked) como paths separados — implementado y testeado desde Fase 1
 - [x] Limpieza: se sacó la acción `enrich_agenda` de `zoom_outbox` (schema, tipos, dispatch) — quedaba del diseño original sin ningún productor real
 - [x] Completar el campo de descripción/agenda en `zoom-browser.ts` — selector real verificado contra el DOM (botón "Add Description" revela un `<textarea id="agenda">`), implementado en `createMeeting`/`updateMeeting`
-- [ ] **Verificación end-to-end contra la cuenta real, pendiente**: la sesión capturada expiró en medio de la prueba (minutos después de haber funcionado para la inspección) — hace falta `npm run zoom:capture-session` de nuevo y repetir crear→releer→cancelar con agenda antes de confiar en esto para el cron
+- [x] Verificación end-to-end contra la cuenta real — ciclo crear (con agenda)→releer desde sesión aparte→cancelar→confirmar ausencia, agenda confirmada en el detalle real
+
+**Fase 3 cerrada — 2026-09-12.**
 
 ## Fase 4 — UI
 

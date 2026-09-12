@@ -379,9 +379,10 @@ después). Hallazgos y fixes durante la verificación:
   completo crear→editar→cancelar, confirmando cada paso releyendo la
   página de detalle desde una sesión aparte (no solo confiando en que el
   click no tirara excepción).
-- Único pendiente real: el campo de agenda/descripción no se implementó
-  (no hace falta para Fase 2-bis — el desacople creación/agenda es
-  intencional, ver "Desacople obligatorio" más arriba; lo agrega Fase 3).
+- El campo de agenda/descripción quedó pendiente en Fase 2-bis a propósito
+  (ver nota revisada más arriba) — se implementó y verificó en Fase 3: el
+  form tiene un botón "Add Description" que revela un
+  `<textarea id="agenda">`, usado en `createMeeting`/`updateMeeting`.
 
 ### Pendiente para activar el cron desatendido
 
