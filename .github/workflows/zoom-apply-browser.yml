@@ -1,0 +1,54 @@
+name: Zoom apply (navegador)
+
+# Reemplaza a la Edge Function `zoom-apply` (Fase 2, API REST — pausada por
+# falta de permisos de cuenta): drena supabase/zoom_outbox manejando un
+# navegador real (Playwright) contra la UI web de Zoom, reusando una sesión
+# ya logueada a mano (ver zoom-automation/capture-session.ts y
+# ZOOM_AUTOMATION.md). No se activa sola hasta que exista el secret
+# ZOOM_SESSION_STATE_B64 — sin él, este workflow falla rápido y no hace nada
+# destructivo.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Restaurar sesión de Zoom
+        run: |
+          mkdir -p zoom-automation/.session
+          echo "${{ secrets.ZOOM_SESSION_STATE_B64 }}" | base64 -d > zoom-automation/.session/zoom-storage-state.json
+
+      - name: Aplicar jobs pendientes contra Zoom
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run zoom:apply
+
+      - name: Subir capturas de pantalla de fallas (si hubo)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoom-apply-failures
+          path: zoom-automation/.session/failures/
+          retention-days: 7
+          if-no-files-found: ignore

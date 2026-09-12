@@ -40,3 +40,7 @@ next-env.d.ts
 # debug
 debug-auth.js
 debug-auth-client.js
+
+# Automatización de Zoom por navegador (Playwright): sesión con cookies
+# reales de la cuenta de Zoom — nunca commitear.
+/zoom-automation/.session/

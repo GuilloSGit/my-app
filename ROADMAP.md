@@ -21,8 +21,8 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 - [x] Verificar pg_cron + pg_net disparando una Edge Function trivial end-to-end (confirmado, ver PROGRESS.md)
 - [x] Encontrado y arreglado: `.env` con secretos `NEXT_PUBLIC_*` sin gitignorear
 - [ ] Verificar cómo se pasa el service-role key a `net.http_post` sin texto plano en `cron.job` (Vault) — se resuelve en Fase 5 cuando haya jobs reales que necesiten auth
-- [ ] Verificar si el caché en memoria del token Zoom sobrevive entre invocaciones de una Edge Function (Fase 2, necesita credenciales Zoom)
-- [ ] Verificar límite de tiempo de ejecución free-tier vs. el loop de `reconcileMonth` (Fase 2)
+- [x] Verificar si el caché en memoria del token Zoom sobrevive entre invocaciones de una Edge Function — **no sobrevive** (spike dedicado con contador de módulo, sin necesitar credenciales de Zoom: cada invocación arrancó un isolate nuevo). Ver PROGRESS.md 2026-09-12.
+- [x] Verificar límite de tiempo de ejecución free-tier vs. el loop de `reconcileMonth` — ya verificado empíricamente en Fase 1 (6 semanas con fetch a WOL + RPCs, sin timeout) y confirmado de nuevo en Fase 2 corriendo `reconcile` real contra el proyecto
 - [ ] Verificar si `supabase start` local trae pg_cron/pg_net para paridad de CI — bloqueado hoy por un problema de Docker en esta red (capas grandes se traban), no crítico para seguir
 - [x] Crear `ROADMAP.md` y `PROGRESS.md` (este archivo)
 
@@ -37,13 +37,55 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 
 **Fase 1 cerrada — 2026-09-12.**
 
-## Fase 2 — Cliente Zoom real + outbox
+## Fase 2 — Cliente Zoom real + outbox — **PAUSADA (2026-09-12)**
 
-- [ ] Cliente Zoom en Deno (S2S OAuth, type:2/use_pmi:false, PATCH preserva join_url, diff campo-por-campo, GET on-demand de start_url)
-- [ ] `dequeue_zoom_jobs`/`complete_zoom_job` + función `zoom-apply` con retry/backoff
-- [ ] `reconcileWeek` encola jobs reales (invocación manual, sin cron todavía)
-- [ ] Tests con `fetch` stubbeado en Deno, nunca contra la API real en CI
-- [ ] Verificación manual contra una cuenta de Zoom real
+> **Bloqueante de fondo, no un permiso chico**: la cuenta Zoom de la
+> congregación es una sub-cuenta administrada centralmente por **"Kingdom
+> Support Services, Inc."** (owner `no-reply-zoom@jw.org` — la organización
+> que gestiona el Zoom institucional de las congregaciones), y el usuario de
+> la congregación tiene rol **"Miembro"**, sin acceso a administración de
+> cuenta. Crear cualquier app en Zoom Marketplace (General, Server-to-Server
+> OAuth o Webhook) requiere permisos de owner/admin de la cuenta completa —
+> algo que la congregación no tiene y no controla. No es un toggle que se
+> pueda prender desde acá ni un problema de plan/dominio de email
+> (se investigó y descartado, ver PROGRESS.md 2026-09-12).
+>
+> Decisión del usuario: **pausar Fase 2 indefinidamente y seguir con el
+> flujo manual** (`lib/zoom-parser.ts` + `zoom-import-dialog.tsx`), que sigue
+> 100% intacto y autoritativo. Todo el código de Fase 2 (cliente Zoom,
+> outbox, `zoom-apply`) queda escrito, testeado y deployado pero **dormido**
+> — no hay cron que lo dispare (Fase 5 nunca se activó), así que no hace
+> nada por sí solo. Si en el futuro se resuelve el permiso a nivel
+> organización (o se decide otra cuenta), se retoma desde acá sin rehacer
+> nada de lo ya hecho. Opciones que quedaron sobre la mesa si se retoma:
+> pedir el permiso a la administración central del Zoom institucional, o
+> usar una cuenta Zoom separada (con la contra de que las reuniones no
+> saldrían de la cuenta/capacidad real que ya usa la congregación).
+
+- [x] Cliente Zoom en Deno (`_shared/zoom/client.ts`): S2S OAuth (token cacheado en el closure del cliente, no a nivel de módulo), `type:2`/`use_pmi:false`, PATCH preserva join_url (no reenvía `settings`), `cancelMeeting` trata 404 como éxito, GET on-demand de `start_url`
+- [x] `dequeue_zoom_jobs`/`complete_zoom_job` (migración `20260912190000`) + función `zoom-apply` con retry/backoff exponencial (techo 5 intentos)
+- [x] `reconciler_upsert_occurrence`/`reconciler_cancel_occurrence` ahora encolan en `zoom_outbox` dentro de la misma guarda de dirty-check que ya tenían (Fase 1) — `reconcileWeek` ya encola jobs reales sin cambios propios, solo invocado a mano (sin cron todavía)
+- [x] Tests con `fetch` stubbeado (Vitest, corren tanto en Node como tipados por `deno check`) para el cliente y el dispatch de jobs — nunca contra la API real en CI
+- [ ] Verificación manual contra una cuenta de Zoom real — **bloqueada, no solo pendiente**: no hay forma de crear la app Server-to-Server OAuth con los permisos actuales de la cuenta. Ver nota de arriba.
+
+## Fase 2-bis — Navegador automatizado (Playwright), reemplaza a la API REST
+
+> Decidido con el usuario 2026-09-12 como salida al bloqueo de arriba: la
+> UI web de Zoom sí funciona con el rol "Miembro" de esta cuenta (es lo que
+> se usa a mano hoy), así que la automatización pasa a manejar esa UI con
+> Playwright en vez de la API REST. Detalle completo en
+> `ZOOM_AUTOMATION.md` (sección "Navegador automatizado (Playwright)").
+
+- [x] Scaffolding: `zoom-automation/` (script standalone, fuera de Next/Supabase — Playwright no corre en Deno Edge Functions), `tsconfig.json` propio, excluido del `tsc`/lint de Next
+- [x] `capture-session.ts` — captura de sesión a mano (nunca se scriptea el login, para no arriesgar CAPTCHA/verificación contra una cuenta gestionada por una organización)
+- [x] `lib/outbox.ts` — mismo contrato `dequeue_zoom_jobs`/`complete_zoom_job` que ya usa la Edge Function `zoom-apply`, consumido desde Node
+- [x] `lib/zoom-browser.ts` (`ZoomBrowserClient`) + `apply.ts` — loop dequeue → browser → complete, con screenshot en cualquier falla
+- [x] `.github/workflows/zoom-apply-browser.yml` — cron cada 10 min + `workflow_dispatch`, sube capturas de fallas como artifact
+- [x] Sesión capturada y verificada como autenticada contra `zoom.us/profile`
+- [x] `npx playwright codegen` grabado por el usuario (crear/editar/cancelar) — selectores reales trasladados a `zoom-browser.ts`
+- [x] **`createMeeting`/`updateMeeting`/`cancelMeeting` verificados de punta a punta contra la cuenta real** (autorización explícita del usuario para esta sesión) — ciclo completo crear→editar→cancelar confirmado releyendo la página de detalle en cada paso, no solo confiando en que el click no tirara error. Encontrados y arreglados: `networkidle` poco confiable en este SPA, timing entre comboboxes de duración, formato real del combobox de hora (24hs, texto libre), y el bug más importante — la página se cerraba antes de que la request de guardar/borrar terminara, dejando el cambio sin aplicar pese a "éxito" aparente. Ver detalle en `ZOOM_AUTOMATION.md`/`PROGRESS.md`.
+- [ ] **Bloqueado en el usuario para activar el cron**: cargar `ZOOM_SESSION_STATE_B64`/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` como secrets del repo en GitHub (nunca por el chat)
+- [ ] Monitorear las primeras corridas reales del cron (contra el outbox real) antes de confiar en que corra sola indefinidamente
 
 ## Fase 3 — Enriquecimiento WOL
 

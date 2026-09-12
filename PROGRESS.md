@@ -223,3 +223,264 @@
   108 tests verdes (39 del reconciliador).
 
 ## Fase 1 — cerrada (2026-09-12)
+
+## 2026-09-12 — Fase 2: cliente Zoom real + outbox
+
+- **Spike previo resuelto sin necesitar credenciales de Zoom**: se desplegó
+  una función throwaway (`spike-cache-check`, `--use-api --no-verify-jwt`)
+  con un contador `let` a nivel de módulo. Tres invocaciones seguidas y dos
+  más 15s después devolvieron cada una un `bootId` distinto y `counter: 1`
+  — confirma que una Edge Function **no** reutiliza estado de módulo entre
+  invocaciones (cada una arranca un isolate nuevo). Conclusión: cachear el
+  token OAuth de Zoom a nivel de módulo no serviría de nada; el caché se
+  implementó en cambio dentro del *closure* de `makeZoomClient` (sirve
+  dentro de una misma invocación de `zoom-apply`, que procesa varios jobs
+  del outbox de una vez). Función borrada inmediatamente después.
+- **Cliente Zoom** (`supabase/functions/_shared/zoom/client.ts`,
+  `makeZoomClient(credentials, fetchImpl)`, `fetch` inyectable para poder
+  testear con Vitest sin pegarle nunca a la API real): `createMeeting`
+  (`type: 2`, `use_pmi: false`), `updateMeeting` (PATCH, no reenvía
+  `settings` para no resetear configuración no relacionada), `cancelMeeting`
+  (DELETE, trata 404 como éxito — ya no existe del lado de Zoom, nada que
+  reintentar), `getStartUrl` (GET on-demand, nunca persistido). `start_time`
+  se arma con `formatInTimeZone` (mismo paquete que ya usa `topic.ts`) sin
+  sufijo `Z`, con `timezone` aparte.
+- **Outbox real** (migración `20260912190000_zoom_outbox_apply.sql`):
+  `reconciler_upsert_occurrence` (que ahora también recibe `p_timezone`,
+  necesario para que el payload del job sea autosuficiente) y
+  `reconciler_cancel_occurrence` encolan en `zoom_outbox` **dentro de la
+  misma guarda `where` de dirty-check** que ya tenían desde Fase 1 —
+  `v_id`/`v_zoom_meeting_id` se leen del `returning` del `insert ... on
+  conflict do update`, que solo devuelve fila si el `where` de arriba
+  realmente aplicó el cambio. `reconciler_mark_blocked` no se tocó: bloquear
+  nunca toca Zoom (regla ya establecida en Fase 1). `dequeue_zoom_jobs`
+  (`for update skip locked`, lote configurable) y `complete_zoom_job`
+  (marca `done` y sincroniza `zoom_meeting_id`/`join_url`/`passcode` en
+  éxito; backoff exponencial con techo de 5 intentos y pasa a `failed` en
+  error) completan el ciclo.
+- **Edge Function `zoom-apply`** (mismo patrón de auth por token interno que
+  `reconcile`, token propio `ZOOM_APPLY_INTERNAL_TOKEN` — no reutiliza
+  `RECONCILE_INTERNAL_TOKEN`): dequeue de a 5, un solo `ZoomClient` por
+  invocación (un solo token OAuth para todo el lote), `applyZoomJob`
+  (`_shared/zoom/apply.ts`) traduce cada job a la llamada de cliente
+  correspondiente y devuelve `{ok, error}` sin propagar la excepción —
+  `enrich_agenda` falla a propósito (`throw`) por no estar implementado
+  todavía (Fase 3), para no aplicarse mal ni quedar colgado en `pending`
+  para siempre si apareciera antes de tiempo.
+- **Gotcha redescubierto** (ya aplicaba en Fase 1 pero se volvió a pisar
+  esta sesión): cada Edge Function se bundlea de forma independiente —
+  cambiar un archivo de `_shared/` no alcanza, hay que redeployar **cada**
+  función que lo importe. Se editó `db-ports.ts` (agregado `p_timezone`) y
+  la primera invocación de prueba de `reconcile` falló con "Could not find
+  the function... in schema cache" hasta redeployar `reconcile` también.
+- **Verificado de punta a punta contra el proyecto real, sin pedirle nada
+  al usuario**: schedule throwaway nuevo (`...002`, jueves 19:00, migración
+  + cleanup igual que en Fase 1) — `reconcile` en modo real generó 6
+  ocurrencias y **6 filas `zoom_outbox` action=`create`** con el payload
+  esperado (topic/agenda/timezone/starts_at/duration/zoom_meeting_id=null).
+  Correr `reconcile` una segunda vez con las mismas 6 ocurrencias sin
+  cambios **no agregó filas nuevas al outbox** (6 antes, 6 después) —
+  confirma que la guarda de dirty-check de Fase 1 también previene
+  duplicar jobs, no solo tocar `status`. Se rotaron
+  `RECONCILE_INTERNAL_TOKEN`/`ZOOM_APPLY_INTERNAL_TOKEN` (los de Fase 1
+  eran de una sesión anterior sin el valor real disponible acá — se
+  regeneraron con `openssl rand -hex 32`, mismo patrón, ninguno es un
+  secreto del usuario).
+- **`zoom-apply` probado contra el fallo real de OAuth** (sin credenciales
+  de Zoom seteadas todavía — `ZOOM_ACCOUNT_ID`/`ZOOM_CLIENT_ID`/
+  `ZOOM_CLIENT_SECRET` no existen como secret): invocado con las 6 filas
+  `pending`, dequeueó 5 (respeta el límite de lote), la sexta quedó
+  intacta. Las 5 pegaron contra el endpoint real de OAuth de Zoom, que
+  devolvió `400 invalid_client` (esperable sin credenciales) — las 5
+  volvieron a `pending` con `attempts: 1`, `last_error` con el mensaje de
+  Zoom, y `available_at` corrido ~2 minutos (backoff exponencial). Confirma
+  el circuito completo dequeue → llamada real → fallo → backoff sin
+  necesitar todavía una cuenta de Zoom real. Se limpiaron después
+  `zoom_outbox`/`meeting_occurrences`/`meeting_schedules` del throwaway
+  (migración de cleanup) y se borró la función de inspección
+  (`spike-inspect-outbox`, throwaway, usada porque `zoom_outbox` es
+  deny-all para anon/authenticated — no hay forma de leerla desde afuera de
+  una Edge Function).
+- **Verificación final**: `npx tsc --noEmit` limpio, `deno check` limpio
+  sobre `_shared/reconciler/*.ts` + `_shared/zoom/*.ts` + `reconcile/index.ts`
+  + `zoom-apply/index.ts`, `npm run lint` limpio, `npm run test:run` con
+  **120 tests verdes** (12 nuevos: cliente de Zoom con `fetch` stubbeado,
+  dispatch de `applyZoomJob`).
+- **Fase 2 PAUSADA — bloqueante real de cuenta, no un permiso menor**:
+  al intentar crear la app Server-to-Server OAuth, las tres opciones de
+  Zoom Marketplace (General/Server-to-Server/Webhook) aparecían con los
+  radio buttons deshabilitados. Investigado con el usuario paso a paso
+  (capturas de pantalla) antes de asumir causa:
+  - Descartado plan Basic/free y dominio de email genérico (`gmail.com`)
+    como causa raíz — son restricciones reales de Zoom en otros casos, pero
+    no la de acá.
+  - Búsqueda en foros oficiales de Zoom (community.zoom.com, devforum.zoom.us)
+    confirmó que la causa típica de las tres opciones deshabilitadas es un
+    permiso de rol ("User Rights"/"Advanced Features" en Role Management),
+    ajustable por el owner de la cuenta — no por plan ni por dominio de
+    email.
+  - **Causa real encontrada en `zoom.us/account`**: la cuenta de la
+    congregación es una **sub-cuenta gestionada centralmente** por
+    **"Kingdom Support Services, Inc."** (propietario `no-reply-zoom@jw.org`
+    — la organización que administra el Zoom institucional de las
+    congregaciones), y el usuario de la congregación tiene rol
+    **"Miembro"**, sin ningún acceso de administración de cuenta. Crear una
+    app de Marketplace requiere permisos de owner/admin de la cuenta
+    completa, algo que la congregación individual no tiene ni puede
+    otorgarse a sí misma — no es un toggle que se pueda prender desde acá.
+  - **Decisión del usuario (2026-09-12)**: pausar Fase 2 (API REST)
+    indefinidamente. Todo el código ya escrito, testeado y deployado
+    (cliente Zoom, outbox real, `zoom-apply`) queda **dormido** — nada lo
+    dispara automáticamente (no hay cron, Fase 5 nunca se activó) —
+    retomable sin rehacer nada si en el futuro se resuelve el permiso a
+    nivel organización o se decide otra cuenta.
+
+## 2026-09-12 — Fase 2-bis: navegador automatizado (Playwright)
+
+- **Pivot decidido con el usuario en la misma sesión**: en vez de quedarse
+  bloqueados o volver 100% al flujo manual, el usuario propuso automatizar
+  la UI web de Zoom con Playwright/Puppeteer (la idea venía de una charla
+  previa en claude.ai, antes de esta sesión de Claude Code) — la UI web sí
+  funciona con el rol "Miembro" de esta cuenta, a diferencia de la API REST.
+  Dos decisiones tomadas con el usuario antes de escribir código:
+  - **Playwright sobre Puppeteer**: mejor soporte de CI (imágenes oficiales
+    para GitHub Actions), locators con auto-wait, y trazas/video al fallar
+    — importante para diagnosticar algo que corre desatendido.
+  - **Sesión capturada a mano, nunca login scripteado**: automatizar
+    usuario/contraseña (o el SSO que use esta cuenta) contra una cuenta
+    gestionada por una organización arriesga CAPTCHA o verificación
+    "¿sos vos?" que rompería la ejecución desatendida. En cambio, el
+    usuario se loguea una sola vez con un Chromium real y visible, y esa
+    sesión (cookies) se guarda y reutiliza. Trade-off aceptado: no es
+    "para siempre" — la sesión va a expirar en algún momento no
+    documentado por Zoom, y hay que recapturarla a mano cuando pase.
+- **Scaffolding nuevo** (`zoom-automation/`, fuera de `app/`/`supabase/
+  functions/` — Playwright no corre ni en Next (no hace falta) ni en Deno
+  Edge Functions (sin Chromium), así que es un contexto Node standalone
+  con su propio `tsconfig.json`, excluido del `tsc`/lint de Next igual que
+  ya se excluye `supabase/functions`):
+  - `capture-session.ts` — abre un Chromium visible, espera a que el
+    usuario se loguee a mano, guarda `storageState()` en
+    `.session/zoom-storage-state.json` (gitignored).
+  - `lib/outbox.ts` — mismo contrato RPC que ya usa la Edge Function
+    `zoom-apply` (`dequeue_zoom_jobs`/`complete_zoom_job`) — el outbox no
+    distingue si el consumidor corre en Deno o en Node, solo que use
+    `service_role`.
+  - `lib/zoom-browser.ts` (`ZoomBrowserClient`) — abre el contexto de
+    Playwright reusando la sesión capturada; `createMeeting`/
+    `updateMeeting`/`cancelMeeting` **tiran error a propósito** ("selectores
+    no grabados") en vez de selectores adivinados a ciegas — para algo que
+    crea reuniones reales de una congregación, adivinar la UI de Zoom sin
+    verla es del mismo tipo de riesgo que ya se evitó antes con el diff
+    posicional/PATCH. Quedan marcados con `TODO(codegen)`: hay que grabar
+    los flujos reales con `npx playwright codegen https://zoom.us` y
+    trasladar los selectores.
+  - `apply.ts` — el loop dequeue → `ZoomBrowserClient` → `complete_zoom_job`,
+    con captura de screenshot en cualquier falla.
+  - `.github/workflows/zoom-apply-browser.yml` — cron cada 10 min +
+    `workflow_dispatch`, restaura la sesión desde un secret en base64, sube
+    capturas de pantalla como artifact si falla.
+  - Nuevas deps (`playwright`, `tsx`, `dotenv` como devDependencies — el
+    repo ya tenía `@playwright/test` para e2e, esto es la misma familia
+    pero para un script standalone, no un test runner) y dos scripts npm
+    (`zoom:capture-session`, `zoom:apply`).
+- **Trade-off documentado en `ZOOM_AUTOMATION.md`**: `SUPABASE_SERVICE_ROLE_KEY`
+  hasta ahora vivía solo dentro de Supabase (inyectada sola en toda Edge
+  Function). Este worker corre fuera de Supabase, así que esa misma clave
+  también tiene que vivir como secret de GitHub Actions — una superficie
+  más donde existe esa clave, aceptado a propósito por el usuario al elegir
+  este camino.
+- **Verificación**: `npx tsc --noEmit -p zoom-automation/tsconfig.json`
+  limpio, `npx tsc --noEmit` (raíz, confirma que `zoom-automation` queda
+  excluido de Next) limpio, `npm run lint` limpio, `npm run test:run` sigue
+  en 120/120 (nada de esto tiene tests propios todavía — son scripts que
+  manejan un navegador real, se van a probar de punta a punta a mano,
+  no con Vitest).
+- **Pendiente, bloqueado en el usuario** (no se le pide nada por chat):
+  1. Correr `npm run zoom:capture-session` localmente y loguearse una vez.
+  2. Cargar `ZOOM_SESSION_STATE_B64` (base64 del archivo de sesión) +
+     `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` como secrets del repo en
+     GitHub, él mismo.
+  3. Grabar con `npx playwright codegen` los flujos de crear/editar/
+     cancelar una reunión y pasarme los selectores reales para completar
+     `zoom-browser.ts`.
+  4. Recién después de eso, probar `zoom:apply` a mano y activar el cron.
+
+## 2026-09-12 (continuación) — Fase 2-bis verificada de punta a punta
+
+- **Sesión capturada y verificada**: el primer intento de
+  `capture-session.ts` guardó una sesión que **no estaba autenticada**
+  (probablemente Enter apretado antes de que el login terminara del todo)
+  — detectado navegando a `zoom.us/profile` con esa sesión y viendo que
+  redirigía a `/signin`, tanto en modo headless como visible (para
+  descartar que fuera detección de bot y no el login en sí). Segundo
+  intento sí quedó autenticado (confirmado: `zoom.us/profile` carga
+  directo, sin redirect).
+- **Incidente de seguridad menor**: el usuario compartió su contraseña real
+  de Zoom dos veces — una vez en una captura de pantalla de un gestor de
+  contraseñas, y otra vez en texto plano dentro del código generado por
+  `playwright codegen`. Nunca se usó para nada (se sigue con sesión
+  capturada, nunca login scripteado); se le recomendó cambiarla como buena
+  práctica.
+- **Selectores reales obtenidos de `playwright codegen`** (grabado por el
+  usuario, logueado en la cuenta real): confirmó el vanity domain real
+  `jworg.zoom.us` (no `zoom.us` genérico), que `/meeting/{id}` es
+  navegable directo para ver detalle, que "Copy Invitation" + el textbox
+  `copy invitation content` da todo el texto de la invitación de una
+  (mejor que leer campos sueltos), y los flujos de Edit/Delete.
+- **Autorización explícita del usuario** para que esta sesión ejecute
+  acciones reales contra la cuenta de Zoom (el harness había bloqueado un
+  intento inicial por ser una "transacción del mundo real" — correctamente,
+  ya que crear una reunión real no es una acción de solo lectura). Con esa
+  autorización se hicieron pruebas reales, no simuladas, iterando sobre
+  errores y capturas de pantalla reales en vez de pedirle al usuario que
+  probara a ciegas.
+- **Bugs encontrados y arreglados, todos reproducidos primero, no
+  adivinados**:
+  1. `waitUntil: "networkidle"` cuelga o es poco confiable en este SPA
+     (websockets/telemetría que nunca terminan) — reemplazado por esperar
+     un elemento concreto en cada navegación.
+  2. El accessible name real del datepicker es `"{Día},{Mes}
+     {núm},{Año} not selected"` (con sufijo de estado) — el match por
+     substring ya alcanzaba, lo que fallaba era `isVisible()` sin esperar
+     contra un dropdown recién abierto (falso negativo por timing). Fix:
+     helper `waitVisible()` que sí espera antes de concluir ausencia.
+  3. El campo de hora es un combobox de **texto libre en formato 24hs**
+     ("19:00"), no un listado de opciones "7:00 PM" como se había asumido
+     sin verlo — el usuario sugirió escribirlo directo con `.fill()` en
+     vez de clickear una opción, más robusto (evita depender de que la
+     lista esté completamente renderizada).
+  4. Clickear el combobox de minutos de duración inmediatamente después de
+     seleccionar el de horas fallaba (el segundo no llegaba a abrirse) —
+     confirmado con un script de diagnóstico que probó el mismo combobox
+     de forma aislada (funcionó solo) vs. en secuencia (falló) antes de
+     agregar una pausa de 300ms entre ambos.
+  5. **El bug más serio**: `updateMeeting` y `cancelMeeting` reportaban
+     éxito (ningún click tiraba error) pero la reunión real **no cambiaba
+     ni se borraba** — se cerraba la página inmediatamente después del
+     click de confirmación, abortando la request al servidor a mitad de
+     camino. Encima, `waitForURL(/\/meeting\/\d+/)` tras guardar una
+     edición era un no-op silencioso: la URL de edición ya matcheaba ese
+     patrón antes de guardar, nunca hubo navegación real que esperar. Se
+     detectó releyendo la página de detalle en una sesión aparte después
+     de cada operación (no confiando en que "el click no tiró error"
+     significara "la operación se aplicó") — mismo principio que ya regía
+     el diseño del reconciliador (verificar contra el estado real, no
+     contra la ausencia de excepciones). Fix: esperar una señal real de
+     finalización — reaparición del link "Edit" (modo detalle) para
+     `update`, redirección a `#/upcoming` para `cancel`.
+- **Verificado con un ciclo completo real**: crear → editar → cancelar
+  sobre la misma reunión de prueba, confirmando cada paso releyendo
+  `/meeting/{id}` desde una sesión Playwright aparte (no la misma que hizo
+  la acción) — tema y horario reflejaban la edición, y la reunión
+  desapareció (sin botón "Delete") después de cancelar. Sin rastro de
+  reuniones de prueba en la cuenta al terminar.
+- **Verificación de código**: `npx tsc --noEmit -p zoom-automation/tsconfig.json`
+  limpio, `npx tsc --noEmit` (raíz) limpio, `npm run lint` limpio,
+  `npm run test:run` en 120/120 (sin tests nuevos — este código maneja un
+  navegador real contra un servicio externo, se verifica de punta a punta
+  a mano, no con Vitest).
+- **Pendiente real, no more selectores**: cargar los tres secrets en
+  GitHub (`ZOOM_SESSION_STATE_B64`, `SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`) y activar el cron — bloqueado en el
+  usuario, nunca por el chat.

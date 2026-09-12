@@ -117,6 +117,7 @@ export function makeDbPorts(supabase: SupabaseClient, schedule: Schedule): Recon
         p_duration_minutes: schedule.durationMinutes,
         p_topic: fields.topic,
         p_agenda: fields.agenda,
+        p_timezone: schedule.timezone,
       });
       if (error) throw new Error(`upsertOccurrence: ${error.message}`);
     },

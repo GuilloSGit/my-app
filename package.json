@@ -11,7 +11,9 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "zoom:capture-session": "tsx zoom-automation/capture-session.ts",
+    "zoom:apply": "tsx zoom-automation/apply.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
@@ -37,12 +39,15 @@
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.4.0",
+    "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.0",
     "gh-pages": "^6.3.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.61.1",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.3.0",
     "vitest": "^4.1.7"
   }
