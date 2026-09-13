@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { AuthGuard } from "@/components/auth-guard";
 import { useAuth } from "@/lib/auth";
@@ -12,7 +13,7 @@ import { MeetingForm } from "@/components/meeting-form";
 import { CsvImport } from "@/components/csv-import";
 import { ZoomImportDialog } from "@/components/zoom-import-dialog";
 import { ParsedZoomMeeting } from "@/lib/zoom-parser";
-import { CalendarDays, Plus, Upload, Shield, RefreshCw, MessageSquare } from "lucide-react";
+import { CalendarDays, Plus, Upload, Shield, RefreshCw, MessageSquare, CalendarClock } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 
 const containerVariants = {
@@ -169,6 +170,13 @@ function DashboardContent() {
                 <RefreshCw className="w-4 h-4" />
                 Recargar
               </button>
+              <Link
+                href="/dashboard/automatizacion"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <CalendarClock className="w-4 h-4" />
+                Automatización (vista de mes)
+              </Link>
             </div>
           </motion.div>
         )}
