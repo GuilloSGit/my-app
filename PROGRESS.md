@@ -1326,7 +1326,42 @@ para nunca scriptear el login).
   sus 2 jobs de `zoom_outbox` que venían reintentando sin poder
   aplicarse — nunca hubiera pasado nada malo (Zoom rechazaba la fecha),
   pero hubieran terminado en `status:'failed'` sin necesidad.
-- **Pendiente real, sin tocar**: el bug de UI distinto (ícono de flecha
-  no clickeable, jobs 26/27, fechas futuras 15/10 y 17/10) — no
-  relacionado con este fix, sigue en la cola reintentando solo.
-  `drift-check` sigue sin diseñar.
+## 2026-09-13 (misma fecha, continuación) — Arreglado: chevron del datepicker
+
+- **Causa raíz encontrada por inspección del DOM real** (autorizado
+  explícitamente por el usuario — sesión de Playwright aparte contra la
+  cuenta real, solo lectura, sin crear ni guardar ninguna reunión): el
+  selector `.zoom-icon.zoom-inline-chevron-icon > svg > path` con
+  `.first()` era ambiguo — esa misma clase la comparten los chevrons de
+  los combobox de Duration, Time Zone, y otros (se encontraron 9
+  elementos en la página con esa clase). `.first()` agarraba el que
+  aparece antes en el DOM, no el del calendario, y el click terminaba
+  interceptado por elementos sin relación (`header_container`, otros
+  `<svg>`) — de ahí el timeout de 30s reintentando ~75 veces.
+- **El botón real de "mes siguiente" tiene accessible name propio**,
+  sin ambigüedad: `aria-label="Next month"` (confirmado volcando el HTML
+  real del popup del calendario, ancla en `zoom-date-panel__header`).
+  Fix: `page.getByRole("button", { name: "Next month" })` — mismo patrón
+  que ya usa el resto de `zoom-browser.ts` (accesible por rol, no por
+  clase CSS interna).
+- **Verificado en dos pasos, sin usar el flujo real hasta confirmar**:
+  primero un click real aislado (fuera de `createMeeting`, sin guardar
+  nada) que avanzó el calendario de September 2026 a October 2026 y
+  expuso el botón del 15/10 — confirmado antes de deployar. Después,
+  deployado y corrido `zoom-apply-browser` contra los 2 jobs reales que
+  habían quedado pendientes (26, 27, fechas 15/10 y 17/10): **los 2 se
+  aplicaron bien**, reuniones de Zoom reales creadas.
+- **Resultado final: las 12 ocurrencias creadas por la primera corrida
+  real del cron quedaron completamente resueltas** — 2 canceladas
+  (fechas pasadas, fix de la sección anterior) + 10 sincronizadas con
+  reuniones de Zoom reales (`zoom_meeting_id`/`join_url` reales). Cadena
+  completa verificada de punta a punta: cron → `reconcile` → `zoom_outbox`
+  → auto-disparo → `zoom-apply-browser` → Zoom real.
+- `zoom-automation/` no tiene suite de tests unitarios (browser
+  automation, se verifica empíricamente contra el DOM real, mismo
+  criterio que el resto de este módulo) — `npx tsc --noEmit` con su
+  propio `tsconfig.json` sí corrido, sin errores.
+- **Pendiente real**: `drift-check` sigue sin diseñar (bloqueado por la
+  misma falta de acceso a la API REST de Zoom que pausó Fase 2). El
+  resto de Fase 5 (retirar el flujo manual, actualizar README/ARCHITECTURE)
+  también sigue pendiente.
