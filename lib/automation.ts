@@ -259,3 +259,25 @@ export async function occurrenceAction(input: OccurrenceActionInput): Promise<{ 
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// Form de excepción genérico (Fase 4, exception-create): declara una
+// excepción de forma proactiva, antes de que exista una fila calculada
+// por el reconciliador — a diferencia de mark_assembly/cancel en
+// occurrenceAction, que solo actúan sobre una fila ya existente.
+export type ExceptionKind = "assembly" | "special_event";
+
+export interface CreateExceptionInput {
+  kind: ExceptionKind;
+  date?: string; // "yyyy-MM-dd", requerido para "assembly"
+  venue?: string;
+  eventDays?: string[]; // requerido para "special_event"
+  suppresses?: ScheduleKind[]; // solo "special_event"
+  createsZoom?: boolean; // solo "special_event"
+  label?: string;
+}
+
+export async function createException(input: CreateExceptionInput): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.functions.invoke("exception-create", { body: input });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

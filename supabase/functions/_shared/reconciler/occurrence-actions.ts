@@ -1,5 +1,5 @@
 import { startOfISOWeek, endOfISOWeek } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import type { Schedule } from "./types.ts";
 import { occurrenceDateForWeek } from "./occurrence-date.ts";
 import { isoWeekKeyForInstant } from "./iso-week.ts";
@@ -32,4 +32,28 @@ export function defaultAssemblyLabel(at: Date, timezone: string): string {
   const sunday = endOfISOWeek(calendarDate);
   const fmt = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
   return `Asamblea (semana ${fmt(monday)} al ${fmt(sunday)})`;
+}
+
+// Día de la semana (0=domingo..6=sábado, igual a Date#getDay()) de una
+// fecha "yyyy-MM-dd" en calendario puro — event_days no tiene componente
+// de hora ni zona horaria propia, así que no hay conversión que hacer acá
+// (a diferencia de defaultAssemblyLabel/siblingWeekDate, que sí parten de
+// un instante real).
+export function weekdayOfDateString(dateStr: string): number {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day).getDay();
+}
+
+// De una lista de event_days (el form de excepción del Acontecimiento
+// especial), las que coinciden con el weekday del schedule dado —
+// únicas fechas donde ese schedule podría tener de verdad una ocurrencia
+// calculada —, convertidas al instante real donde esa ocurrencia
+// existiría (mismo `fromZonedTime` que usa expand.ts).
+export function matchingOccurrenceDates(
+  eventDays: string[],
+  schedule: Pick<Schedule, "weekday" | "localTime" | "timezone">,
+): Date[] {
+  return eventDays
+    .filter((d) => weekdayOfDateString(d) === schedule.weekday)
+    .map((d) => fromZonedTime(`${d}T${schedule.localTime}`, schedule.timezone));
 }

@@ -1091,3 +1091,65 @@ igual sin contenido, Cancelar esta reunión, Mover a otro día. Se usó
     ahora" ni la cuenta real de Zoom.
 - Acciones de fila (Fase 4) **cerradas**: implementadas, deployadas y
   verificadas.
+
+## 2026-09-13 (misma fecha, nueva sesión) — Form de excepción genérico (`exception-create`), Fase 4 cerrada
+
+Último punto de Fase 4. Se usó `/EnterPlanMode` — plan en
+`~/.claude/plans/eager-sniffing-giraffe.md`.
+
+- **Diferencia clave con lo ya implementado**: "Marcar Asamblea"/
+  "Cancelar" (sesión anterior, `occurrence-action`) solo actúan **sobre
+  una fila que ya existe**. Este form declara la excepción **de forma
+  proactiva**, antes de que el reconciliador haya llegado a calcular esa
+  semana — caso real: cargar hoy una asamblea que va a pasar en 2 meses.
+- **Dos decisiones confirmadas con el usuario antes de codear**: (1)
+  alcance limitado a Asamblea + Acontecimiento especial — "Sin reunión"
+  suelto queda afuera, se sigue resolviendo desde la fila real cuando
+  llegue el momento; (2) si ya había una fila calculada para alguna fecha
+  afectada, se cancela en el mismo submit (mismo comportamiento que
+  "Marcar Asamblea"/"Mover a otro día").
+- **Lógica pura nueva** en `occurrence-actions.ts` (mismo archivo de la
+  sesión anterior): `weekdayOfDateString` (día de semana de un
+  "yyyy-MM-dd" en calendario puro, sin huso horario — `event_days` no
+  tiene componente de hora) y `matchingOccurrenceDates` (de una lista de
+  `event_days`, las que coinciden con el weekday de un schedule,
+  convertidas al instante real donde existiría esa ocurrencia). 3 tests
+  nuevos, 155 en total.
+- **Edge Function nueva** `supabase/functions/exception-create/index.ts`:
+  para Asamblea, generaliza el mecanismo de `mark_assembly` (que parte de
+  una fila existente) a partir de una fecha suelta — calcula la semana
+  ISO con `isoWeekKeyFromCalendarDate` y la fecha real de **cada**
+  schedule activo con `occurrenceDateForWeek` (ambas de Fase 1, sin
+  hardcodear "2 schedules"). Para Acontecimiento especial, usa
+  `matchingOccurrenceDates` por cada schedule tildado en `suppresses`.
+  Ambos casos cancelan (mismo RPC `schedule_write_cancel_occurrence`) 
+  cualquier ocurrencia ya calculada en esas fechas. Sin preview, mismo
+  criterio que `occurrence-action`.
+- **Frontend**: `components/exception-create-dialog.tsx` (nuevo,
+  selector de tipo + mini-form), botón "Nueva excepción" en el header de
+  `/dashboard/automatizacion`. El pre-marcado de los checkboxes "Suprime
+  Entresemana/Fin de semana" en Acontecimiento especial se calcula
+  **en el cliente** (no hace falta ida y vuelta al servidor: `schedules`
+  ya está cargado en la página), recalculado cada vez que cambia la
+  lista de fechas.
+- Suite verde: `npm run lint`, `npm test` (155 tests), `npm run build`,
+  `deno check` sobre los 5 Edge Functions de la feature — todo sin
+  errores. Deploy sin bloqueo del clasificador esta vez.
+- **Verificado de punta a punta contra el proyecto real**: mismo
+  mecanismo de login (`generateLink`, sin mandar mail) + 3 filas
+  sintéticas `synced` con `zoom_meeting_id` falso (jueves+sábado de una
+  semana para Asamblea, un jueves de otra semana para Acontecimiento
+  especial). **Asamblea**: fecha cargada un viernes cualquiera de la
+  semana → encontró y canceló las dos filas reales (jueves y sábado),
+  excepción con `event_days` de ambas fechas y label default correcto
+  ("Asamblea (semana 02/11 al 08/11)"), dos jobs reales de cancelación
+  encolados. **Acontecimiento especial**: el checkbox "Entresemana" se
+  pre-marcó solo (la fecha cargada era jueves), confirmado sin tocarlo →
+  excepción con `suppresses:['midweek']`, la fila existente cancelada,
+  job real encolado. Limpieza total al final (0 ocurrencias/excepciones/
+  jobs). Nunca se tocó "Sincronizar ahora" ni la cuenta real de Zoom.
+- **Fase 4 completa**: vista de mes, gate de admin, botón "Sincronizar
+  ahora", editor de horario, acciones de fila y form de excepción — los
+  6 entregables implementados, deployados y verificados contra el
+  proyecto real. Sigue Fase 5 (cron real + drift-check + retiro del
+  flujo manual).

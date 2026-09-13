@@ -602,16 +602,34 @@ job reintenta.
   `Schedule` puro (`localTime` camelCase); `occurrenceDateForWeek`
   terminaba armando una fecha con `Tundefined`. Fix: mapear la fila antes
   de pasarla. Redeployado y reverificado, ver PROGRESS.md.
-- **Form de excepción** (pendiente, necesita el gate) — defaults ya acordados con el usuario (no
-  volver a preguntar):
-  - **Asamblea** (cualquier tipo — circuito o regional): suprime **siempre
-    ambas** reuniones de esa semana. `creates_zoom` fijo en `false` (no
-    editable) — no hay link, solo la info de lugar/día(s) cargada, o si no
-    hay lugar, un texto tipo `Asamblea (semana {lunes dd/mm} al {domingo
-    dd/mm})`.
-  - **Acontecimiento especial** (genérico): se pre-marca como sugerencia
-    editable el checkbox de la reunión cuyo día caiga en `event_days`, pero
-    queda abierto a edición manual — no es una regla fija.
+- **Form de excepción — implementado, deployado y verificado de punta a punta contra el
+  proyecto real, 2026-09-13**: `supabase/functions/exception-create/index.ts` +
+  `components/exception-create-dialog.tsx`, botón "Nueva excepción" en el
+  header de `/dashboard/automatizacion`. Diferencia con "Marcar Asamblea"/
+  "Cancelar" (`occurrence-action`, sesión anterior): este declara la
+  excepción **de forma proactiva**, sin partir de una fila ya calculada
+  por el reconciliador — si ya había una para alguna fecha afectada, se
+  cancela en el mismo submit (mismo RPC `schedule_write_cancel_occurrence`).
+  Alcance confirmado con el usuario: solo Asamblea + Acontecimiento
+  especial, sin preview (mismo criterio que `occurrence-action`).
+  - **Asamblea** (cualquier tipo — circuito o regional): admin carga
+    cualquier día de la semana objetivo; el backend calcula la fecha real
+    de **cada** `meeting_schedules` activo para esa semana ISO
+    (`occurrenceDateForWeek`, generaliza sin hardcodear "2 schedules") y
+    suprime **siempre ambas** reuniones. `creates_zoom` fijo en `false`
+    (no editable) — no hay link, solo la info de lugar/día(s) cargada, o
+    si no hay lugar, `defaultAssemblyLabel(...)`
+    (`Asamblea (semana {lunes dd/mm} al {domingo dd/mm})`, ya escrita en
+    la sesión de acciones de fila).
+  - **Acontecimiento especial** (genérico): lista de `event_days` armada
+    a mano (fecha + "Agregar", chips removibles). Checkboxes "Suprime
+    Entresemana"/"Suprime Fin de semana" **pre-marcados en el cliente**
+    (sin ida y vuelta al servidor — `schedules` ya está cargado en la
+    página) según el weekday de cada schedule, editable libremente — "no
+    es una regla fija", confirmado en la verificación (con una fecha en
+    jueves, el checkbox de fin de semana no se pre-marcó). Checkbox
+    "Crea Zoom" editable (a diferencia de Asamblea, sin default fijado en
+    la spec original).
 - **Editor de horario con preview — implementado, deployado y verificado
   de punta a punta contra el proyecto real, 2026-09-13**: Edge Function `schedule-write`
   (`supabase/functions/schedule-write/index.ts`) + diálogo

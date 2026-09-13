@@ -9,6 +9,7 @@ import { OccurrenceStatusBadge } from "@/components/occurrence-status-badge";
 import { CopyButton } from "@/components/copy-button";
 import { ScheduleEditorDialog } from "@/components/schedule-editor-dialog";
 import { OccurrenceActionDialog } from "@/components/occurrence-action-dialog";
+import { ExceptionCreateDialog } from "@/components/exception-create-dialog";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import { formatMeetingDate } from "@/lib/meetings";
@@ -23,7 +24,7 @@ import {
   Occurrence,
   ReconcileRunSummary,
 } from "@/lib/automation";
-import { CalendarClock, RefreshCw, Send, Pencil, ListChecks } from "lucide-react";
+import { CalendarClock, RefreshCw, Send, Pencil, ListChecks, CalendarPlus } from "lucide-react";
 
 function formatScheduleSummary(schedule: Schedule): string {
   const time = schedule.localTime.slice(0, 5); // "HH:mm:ss" -> "HH:mm"
@@ -53,6 +54,7 @@ function AutomatizacionContent() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [actionOccurrence, setActionOccurrence] = useState<Occurrence | null>(null);
+  const [creatingException, setCreatingException] = useState(false);
 
   const userIsAdmin = isAdmin(user);
 
@@ -130,6 +132,13 @@ function AutomatizacionContent() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCreatingException(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <CalendarPlus className="w-4 h-4" />
+                Nueva excepción
+              </button>
               <button
                 onClick={handleSync}
                 disabled={syncing}
@@ -271,6 +280,17 @@ function AutomatizacionContent() {
           onClose={() => setActionOccurrence(null)}
           onDone={() => {
             setActionOccurrence(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {creatingException && (
+        <ExceptionCreateDialog
+          schedules={schedules}
+          onClose={() => setCreatingException(false)}
+          onDone={() => {
+            setCreatingException(false);
             refresh();
           }}
         />
