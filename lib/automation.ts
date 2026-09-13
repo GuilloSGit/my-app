@@ -186,3 +186,13 @@ const STATUS_LABEL: Record<OccurrenceStatus, string> = {
 export function occurrenceStatusLabel(status: OccurrenceStatus): string {
   return STATUS_LABEL[status];
 }
+
+// Dispara zoom-apply-browser (GitHub Actions) casi al instante en vez de
+// esperar el backstop de reconcile cada 2 días. supabase.functions.invoke
+// adjunta el JWT de la sesión activa solo; la Edge Function del otro lado
+// (zoom-apply-dispatch) valida ese JWT contra ADMIN_EMAILS server-side.
+export async function triggerZoomSync(): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.functions.invoke("zoom-apply-dispatch", { method: "POST" });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

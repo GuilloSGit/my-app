@@ -546,8 +546,11 @@ job reintenta.
 > un cliente autenticado (`supabase.auth.getUser(jwt)`) y chequear el email
 > contra la misma lista de `ADMIN_EMAILS` que ya usa `lib/admin.ts`
 > client-side — del lado server como una env var más de Supabase (no
-> secreta, ya es pública vía `NEXT_PUBLIC_ADMIN_EMAIL`). Acordado, todavía
-> sin implementar.
+> secreta, ya es pública vía `NEXT_PUBLIC_ADMIN_EMAIL`). **Implementado
+> 2026-09-13** en `supabase/functions/_shared/admin-auth.ts`
+> (`requireAdmin`) — primer consumidor: `zoom-apply-dispatch` (botón
+> "Sincronizar ahora", ver "Jobs" más abajo). Pendiente de deploy y de
+> cargar el secret `ADMIN_EMAILS` (ver PROGRESS.md).
 
 - **Vista de mes — implementada, de solo lectura**: `/dashboard/automatizacion`
   (`app/dashboard/automatizacion/page.tsx`, admin-only vía `isAdmin()`,
@@ -638,15 +641,17 @@ aplica en segundos, el backstop de baja frecuencia cubre el resto" — solo
 que el backstop ahora es cada 2 días, no cada 2 minutos, porque correrlo
 más seguido ya no es gratis):
 
-1. **Botón "Sincronizar ahora" en el admin UI (Fase 4)**: llama a una
-   Edge Function nueva y chica (`zoom-apply-dispatch`) que dispara el
+1. **Botón "Sincronizar ahora" en el admin UI (Fase 4) — implementado
+   2026-09-13, pendiente de deploy**: llama a una Edge Function nueva y
+   chica (`zoom-apply-dispatch`, gate `requireAdmin`) que dispara el
    workflow de GitHub Actions vía la API REST de GitHub
-   (`POST /repos/{owner}/{repo}/actions/workflows/zoom-apply-browser.yml/dispatches`),
-   usando un GitHub Personal Access Token (scope `workflow`) guardado como
-   secret de Supabase — **nunca en el frontend ni pedido por el chat**, el
-   usuario lo genera y lo carga él mismo (`supabase secrets set
-   GITHUB_PAT=...`), mismo patrón que toda credencial real de este
-   proyecto. Da sync casi instantáneo cuando el admin edita algo.
+   (`POST /repos/{owner}/{repo}/actions/workflows/zoom-apply-browser.yml/dispatches`,
+   `supabase/functions/_shared/github/dispatch-workflow.ts`), usando un
+   GitHub Personal Access Token (scope `workflow`) guardado como secret de
+   Supabase — **nunca en el frontend ni pedido por el chat**, el usuario lo
+   genera y lo carga él mismo (`supabase secrets set GITHUB_PAT=...`),
+   mismo patrón que toda credencial real de este proyecto. Da sync casi
+   instantáneo cuando el admin edita algo.
 2. **Backstop automático cada 2 días**: al terminar su corrida, el propio
    `reconcile` dispara el mismo `zoom-apply-dispatch` (fire-and-forget,
    igual que el spec original preveía para la Edge Function `zoom-apply`

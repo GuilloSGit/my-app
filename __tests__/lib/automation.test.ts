@@ -14,20 +14,22 @@ function makeChain(result: QueryResult) {
   return chain;
 }
 
-const { mockFrom } = vi.hoisted(() => ({ mockFrom: vi.fn() }));
+const { mockFrom, mockInvoke } = vi.hoisted(() => ({ mockFrom: vi.fn(), mockInvoke: vi.fn() }));
 
-vi.mock("@/lib/supabase", () => ({ supabase: { from: mockFrom } }));
+vi.mock("@/lib/supabase", () => ({ supabase: { from: mockFrom, functions: { invoke: mockInvoke } } }));
 
 import {
   getActiveSchedules,
   getUpcomingOccurrences,
   getLatestReconcileRuns,
+  triggerZoomSync,
   scheduleKindLabel,
   occurrenceStatusLabel,
 } from "@/lib/automation";
 
 beforeEach(() => {
   mockFrom.mockReset();
+  mockInvoke.mockReset();
 });
 
 describe("getActiveSchedules", () => {
@@ -158,5 +160,24 @@ describe("labels", () => {
     expect(occurrenceStatusLabel("synced")).toBe("Sincronizada");
     expect(occurrenceStatusLabel("cancelled")).toBe("Cancelada");
     expect(occurrenceStatusLabel("blocked")).toBe("Bloqueada");
+  });
+});
+
+describe("triggerZoomSync", () => {
+  it("invoca zoom-apply-dispatch y devuelve ok:true sin error", async () => {
+    mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
+
+    const result = await triggerZoomSync();
+
+    expect(result).toEqual({ ok: true });
+    expect(mockInvoke).toHaveBeenCalledWith("zoom-apply-dispatch", { method: "POST" });
+  });
+
+  it("devuelve ok:false con el mensaje de error si la invocación falla", async () => {
+    mockInvoke.mockResolvedValue({ data: null, error: { message: "forbidden" } });
+
+    const result = await triggerZoomSync();
+
+    expect(result).toEqual({ ok: false, error: "forbidden" });
   });
 });

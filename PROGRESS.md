@@ -763,3 +763,89 @@ no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
   la misma lista de `ADMIN_EMAILS` que ya usa `lib/admin.ts` client-side
   — distinto del token estático que usan `reconcile`/`zoom-apply` hoy
   (pensado para cron/servidor, inseguro para exponer en el browser).
+
+## 2026-09-13 (misma fecha) — Gate de admin implementado + botón "Sincronizar ahora"
+
+- **Gate de admin implementado**: `supabase/functions/_shared/admin-auth.ts`
+  (`isAdminEmail` pura + `requireAdmin(req, config)`, config recibida por
+  parámetro — no lee `Deno.env` directo porque el módulo también lo importa
+  un test de Vitest, donde `Deno` no existe; mismo motivo por el que el
+  resto de `_shared/` mantiene `Deno.env.get(...)` solo en el `index.ts` de
+  cada función) valida el JWT de sesión (`supabase.auth.getUser(jwt)`
+  contra `SUPABASE_URL`/`SUPABASE_ANON_KEY`, ambas ya inyectadas por
+  Supabase en toda Edge Function) y el email contra la env var nueva
+  `ADMIN_EMAILS` (no secreta, mismo valor que `NEXT_PUBLIC_ADMIN_EMAIL`).
+- **Primer consumidor real**: `zoom-apply-dispatch` (Edge Function nueva) +
+  `supabase/functions/_shared/github/dispatch-workflow.ts`
+  (`dispatchZoomApplyWorkflow`, fetch inyectado, mismo patrón que
+  `makeZoomClient`) — dispara `zoom-apply-browser.yml` vía la API de
+  GitHub Actions con un `GITHUB_PAT` (secret nuevo, scope `workflow`).
+  Botón "Sincronizar ahora" en `/dashboard/automatizacion`
+  (`lib/automation.ts#triggerZoomSync`, `supabase.functions.invoke`
+  adjunta el JWT solo) — ver "Jobs" en `ZOOM_AUTOMATION.md` para el diseño
+  completo, ya acordado antes de esta sesión.
+- **A diferencia de `reconcile`/`zoom-apply` (`verify_jwt:false`, pensados
+  para el token interno estático de cron/servidor), `zoom-apply-dispatch`
+  se deja con `verify_jwt` en su default (`true`)** — el gateway de
+  Supabase ya rechaza requests sin un JWT válido antes de que corra
+  `requireAdmin`, defensa en profundidad para una función pensada para el
+  browser de un admin.
+- **Efecto colateral encontrado y arreglado — pedido explícito del usuario
+  en el momento ("no vayas a pushear esos mails de admins")**: el test
+  nuevo de `admin-auth.ts` quedó con los emails reales de
+  `NEXT_PUBLIC_ADMIN_EMAIL` como fixture — se cambiaron a
+  `admin@example.com`/`otro-admin@example.com` antes de que hubiera
+  cualquier commit (nada se llegó a pushear). De paso, el usuario preguntó
+  si esos emails ya estaban expuestos: sí, `lib/admin.ts` los tenía
+  hardcodeados como fallback desde el commit `177d247` (16-abr), ya
+  pusheado a `origin/master` hace tiempo — no algo nuevo de esta sesión.
+- **Se sacó el fallback hardcodeado de `lib/admin.ts` y
+  `lib/authorized-emails.ts`** (pedido explícito del usuario tras la
+  pregunta de arriba): ambas listas ya viven como GitHub Actions
+  Variables (`NEXT_PUBLIC_ADMIN_EMAIL`/`NEXT_PUBLIC_AUTHORIZED_EMAILS`,
+  confirmado con `gh variable list` que ya estaban cargadas y que
+  `deploy.yml` ya las pasa al build) — el fallback ya no hace falta en
+  producción. Se completó el `.env` local (gitignoreado) con los mismos
+  valores para no romper el desarrollo local.
+  - **Bug de test pre-existente encontrado al sacar el fallback**:
+    `__tests__/components/login.test.tsx` importaba `LoginPage` de forma
+    estática arriba del archivo — como ESM ejecuta los imports antes que
+    cualquier código propio del archivo, `lib/authorized-emails.ts` (y su
+    lista `authorizedEmails`, calculada una sola vez al importarse) ya se
+    evaluaba con `process.env` vacío antes de que corriera el
+    `vi.stubEnv(...)` de cada `beforeEach` — el stub nunca tuvo efecto
+    real. El test pasaba antes solo porque el email de prueba
+    (`guillermoandrada@gmail.com`) coincidía por casualidad con el
+    fallback hardcodeado que se acababa de sacar. Fix: import dinámico de
+    `LoginPage` (`await import(...)`) después del stub en cada test,
+    mismo patrón que ya usaban `admin.test.ts`/`authorized-emails.test.ts`
+    correctamente. **Si aparece un test nuevo que hace `vi.stubEnv` sobre
+    una env var que un módulo lee a nivel de módulo (no dentro de una
+    función), el import del componente bajo test tiene que ser dinámico y
+    posterior al stub — un import estático arriba del archivo lo fija
+    antes.**
+  - El usuario preguntó separado si el problema histórico (commit
+    `6b3707c`, "GitHub Pages no exponía bien las env vars") había sido un
+    tema de símbolos/encoding en las listas separadas por comas — no: fue
+    otro bug, ya arreglado hace tiempo y sin relación (`admin.ts` en su
+    versión original, commit `177d247`, comparaba `user.email === ADMIN_EMAIL`
+    contra un único valor, sin `.split(",")` — con una lista de varios
+    emails esa igualdad exacta nunca daba `true`; el `.split(",")` que
+    arregló eso ya está desde ese commit). El de `6b3707c` fue que en ese
+    momento la env var le llegaba vacía del todo en el build de GitHub
+    Pages (0 emails, no 1) — motivo real por el que se había agregado el
+    fallback que hoy se sacó.
+- **Deploy bloqueado por el clasificador de modo automático** (categoría
+  "Production Deploy", mismo tipo de bloqueo — no el mismo caso puntual —
+  que ya bloqueó `supabase secrets set` en una sesión anterior):
+  `supabase functions deploy zoom-apply-dispatch --use-api` no se
+  ejecutó. **Pendiente real, en este orden**:
+  1. El usuario corre el deploy de la función.
+  2. El usuario carga los dos secrets nuevos (`ADMIN_EMAILS`,
+     `GITHUB_PAT`) — ver comandos en el plan de esta sesión.
+  3. Probar el botón "Sincronizar ahora" en `/dashboard/automatizacion`
+     con un admin real y confirmar con `gh run list
+     --workflow=zoom-apply-browser.yml` que disparó una corrida.
+- Suite verde: `npm run test:run` (141 tests), `npx tsc --noEmit`, `npm run
+  lint`, y `deno check` sobre los tres archivos nuevos de
+  `supabase/functions/` — los cuatro sin errores.

@@ -14,12 +14,13 @@ import {
   getActiveSchedules,
   getUpcomingOccurrences,
   getLatestReconcileRuns,
+  triggerZoomSync,
   scheduleKindLabel,
   Schedule,
   Occurrence,
   ReconcileRunSummary,
 } from "@/lib/automation";
-import { CalendarClock, RefreshCw } from "lucide-react";
+import { CalendarClock, RefreshCw, Send } from "lucide-react";
 
 const WEEKDAY_LABEL = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
@@ -47,6 +48,8 @@ function AutomatizacionContent() {
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [runs, setRuns] = useState<ReconcileRunSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const userIsAdmin = isAdmin(user);
 
@@ -73,6 +76,18 @@ function AutomatizacionContent() {
     if (userIsAdmin) refresh();
   }, [userIsAdmin, refresh]);
 
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    const result = await triggerZoomSync();
+    setSyncMessage(
+      result.ok
+        ? "Sincronización disparada. Puede tardar unos minutos en reflejarse acá."
+        : `Error al sincronizar: ${result.error ?? "desconocido"}`,
+    );
+    setSyncing(false);
+  }, []);
+
   if (!userIsAdmin) return null;
 
   return (
@@ -98,14 +113,31 @@ function AutomatizacionContent() {
               Estado de las ocurrencias calculadas por el reconciliador. Solo lectura por ahora.
             </p>
           </div>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Recargar
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-media-agua text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                <Send className={`w-4 h-4 ${syncing ? "animate-pulse" : ""}`} />
+                Sincronizar ahora
+              </button>
+              <button
+                onClick={refresh}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                Recargar
+              </button>
+            </div>
+            {syncMessage && (
+              <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-xs text-right">
+                {syncMessage}
+              </p>
+            )}
+          </div>
         </motion.div>
 
         {schedules.length === 0 && !loading ? (
