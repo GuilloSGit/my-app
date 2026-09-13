@@ -88,8 +88,10 @@ pantalla.
 
 ## Gotchas (repetido de ARCHITECTURE.md, porque importan al codear)
 
-- CI necesita **Node ≥20** (Vitest 4). No tocar `node-version` en
-  `.github/workflows/deploy.yml` sin saber esto.
+- CI necesita **Node ≥20** (Vitest 4). `deploy.yml` está en Node 22 (subido
+  desde 20 en 2026-09-13 para sacar el warning de deprecación de GitHub
+  Actions, mismo valor que ya usaba `zoom-apply-browser.yml`) — no bajarlo
+  de 20.
 - `theme-toggle.tsx` debe usar `resolvedTheme`, no `theme`, de `next-themes`.
 - Los `<label>` de `MeetingForm` no tienen `htmlFor`/`id` — ubicar inputs por
   `placeholder` en tests, no por label.

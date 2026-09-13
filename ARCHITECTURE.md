@@ -169,9 +169,9 @@ sección `## Tests`):
 
 ## Gotchas conocidos
 
-- **Vitest 4 requiere Node ≥20.** El workflow de CI está en Node 20 en los
-  tres jobs — no bajarlo, rompe con un `SyntaxError` sobre `node:util`'s
-  `styleText`.
+- **Vitest 4 requiere Node ≥20.** El workflow de CI está en Node 22 en los
+  tres jobs (subido desde 20 en 2026-09-13) — no bajarlo de 20, rompe con
+  un `SyntaxError` sobre `node:util`'s `styleText`.
 - **Supabase free tier se pausa solo** tras ~7 días de inactividad (dominio
   `*.supabase.co` da NXDOMAIN). Si el login falla con "Failed to fetch",
   chequear primero el estado del proyecto en supabase.com/dashboard antes de
