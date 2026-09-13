@@ -532,18 +532,48 @@ job reintenta.
 
 ---
 
-## Interfaz (Fase 4, todavía no implementada)
+## Interfaz (Fase 4) — primer entregable cerrado 2026-09-13
 
-- **Vista de mes**: fila por semana, chip de estado, fecha, título
-  derivado, agenda resuelto, `join_url` cuando existe.
-- **Acciones de un clic sobre filas bloqueadas**: Marcar Asamblea (abre
+> **Gate de admin nuevo, necesario para todo lo que sigue siendo de solo
+> lectura hoy**: `reconcile`/`zoom-apply` se autentican con un token
+> interno estático (`RECONCILE_INTERNAL_TOKEN`/`ZOOM_APPLY_INTERNAL_TOKEN`),
+> pensado para invocaciones servidor-a-servidor (cron, `gh workflow run`) —
+> **no es seguro exponerlo en el browser de un admin** (cualquiera con
+> DevTools lo vería). Las próximas Edge Functions de escritura que se
+> llamen desde acá (botón "Sincronizar ahora", acciones de fila,
+> excepciones, editor de horario) necesitan un gate distinto: validar el
+> JWT que `supabase.functions.invoke(...)` ya adjunta solo cuando lo llama
+> un cliente autenticado (`supabase.auth.getUser(jwt)`) y chequear el email
+> contra la misma lista de `ADMIN_EMAILS` que ya usa `lib/admin.ts`
+> client-side — del lado server como una env var más de Supabase (no
+> secreta, ya es pública vía `NEXT_PUBLIC_ADMIN_EMAIL`). Acordado, todavía
+> sin implementar.
+
+- **Vista de mes — implementada, de solo lectura**: `/dashboard/automatizacion`
+  (`app/dashboard/automatizacion/page.tsx`, admin-only vía `isAdmin()`,
+  redirige a `/dashboard` si no lo es), agrupada por schedule con chip de
+  estado (`components/occurrence-status-badge.tsx`), motivo cuando está
+  `blocked`, `join_url` con `CopyButton`. Datos vía `lib/automation.ts`
+  (mismo patrón que `lib/meetings.ts`: funciones async sobre el cliente
+  Supabase del browser, sin server actions — RLS de lectura ya lo permite,
+  no hace falta el gate de admin de arriba para esto). Sin ningún botón de
+  escritura todavía — eso espera al gate.
+- **`meeting_schedules` con el horario real cargado** (migración
+  `20260912210000_seed_real_schedules.sql` +
+  `20260912210500_fix_schedule_timezone.sql`): jueves 19:00 y sábado 18:00,
+  2hs cada una, `America/Argentina/Buenos_Aires` — antes vacía en
+  producción, así que `reconcile` no tenía nada que calcular. **Stopgap
+  explícito**, pedido así por el usuario: el editor de horario (más abajo)
+  va a reemplazar esta carga manual por una UI editable para cuando el
+  horario cambie.
+- **Acciones de un clic sobre filas bloqueadas** (pendiente, necesita el gate): Marcar Asamblea (abre
   form de excepción), Marcar Conmemoración (`origin='manual'`), Crear igual
   sin contenido, Cancelar esta reunión, **Mover a otro día** (caso "Visita
   del Superintendente de Circuito": no es una cancelación, es un
   corrimiento — se resuelve con una excepción `suppresses=['midweek']` +
   una ocurrencia `origin='manual'` en la fecha nueva; la UI hace ambos
   pasos atrás de escena).
-- **Form de excepción** — defaults ya acordados con el usuario (no
+- **Form de excepción** (pendiente, necesita el gate) — defaults ya acordados con el usuario (no
   volver a preguntar):
   - **Asamblea** (cualquier tipo — circuito o regional): suprime **siempre
     ambas** reuniones de esa semana. `creates_zoom` fijo en `false` (no
@@ -553,14 +583,16 @@ job reintenta.
   - **Acontecimiento especial** (genérico): se pre-marca como sugerencia
     editable el checkbox de la reunión cuyo día caiga en `event_days`, pero
     queda abierto a edición manual — no es una regla fija.
-- **Editor de horario con preview**: antes de guardar un cambio de horario,
+- **Editor de horario con preview** (pendiente, necesita el gate): antes de guardar un cambio de horario,
   correr el reconciliador en modo `dryRun` (`reconcile` con
   `dryRun:true`, ya implementado y probado en Fase 1) y mostrar el diff en
   texto plano. No opcional — sin el preview, el usuario no confía en el
-  botón y vuelve al proceso manual.
-- **`reconcile_runs.finished_at` siempre visible**, aunque no haya nada
-  pendiente — un tablero que dice "todo bien" y uno con "última corrida
-  hace 9 días" se ven igual si no se muestra la fecha.
+  botón y vuelve al proceso manual. Reemplaza la carga manual de
+  `meeting_schedules` de arriba.
+- **`reconcile_runs.finished_at` siempre visible — implementado**, aunque
+  no haya nada pendiente (mismo entregable que la vista de mes) — un
+  tablero que dice "todo bien" y uno con "última corrida hace 9 días" se
+  ven igual si no se muestra la fecha.
 
 ---
 

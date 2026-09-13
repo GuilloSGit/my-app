@@ -35,6 +35,15 @@ correctamente el frontend estático y el flujo de `meetings` — no se
 reescribe hasta que esa feature esté completa y pase a ser el sistema
 autoritativo (Fase 5 del roadmap).
 
+**Fase 4 (2026-09-13, primer entregable): `app/dashboard/automatizacion/page.tsx`**
+(admin-only) + `lib/automation.ts` son la primera pieza de UI de esa
+automatización — vista de mes de solo lectura sobre `meeting_schedules`/
+`meeting_occurrences`/`reconcile_runs`, mismo patrón de `lib/meetings.ts`
+(funciones async sobre el cliente Supabase del browser). Todavía sin
+ningún botón de escritura — ver `ZOOM_AUTOMATION.md` sección "Interfaz"
+para el porqué (gate de admin nuevo, pendiente) y el resto de la
+estructura de carpetas de esta feature.
+
 **`zoom-automation/` (Fase 2-bis, 2026-09-12): la cuenta Zoom real de la
 congregación resultó ser una sub-cuenta administrada por una organización
 externa, sin permisos para crear apps en su Marketplace — la API REST de
