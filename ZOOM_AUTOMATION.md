@@ -571,8 +571,8 @@ job reintenta.
   explícito**, pedido así por el usuario: el editor de horario (más abajo)
   va a reemplazar esta carga manual por una UI editable para cuando el
   horario cambie.
-- **Acciones de un clic — implementadas 2026-09-13** (falta deploy real, bloqueado por el
-  clasificador de modo automático, + verificación contra la cuenta):
+- **Acciones de un clic — implementadas, deployadas y verificadas de punta a punta contra
+  el proyecto real, 2026-09-13**:
   `supabase/functions/occurrence-action/index.ts` +
   `components/occurrence-action-dialog.tsx`. Marcar Asamblea, Marcar
   Conmemoración (`origin='manual'`, con su propio selector de fecha/hora,
@@ -595,6 +595,13 @@ job reintenta.
   "Cancelar"/"Mover" sí escriben la excepción y "Crear igual sin
   contenido" usa `pinned=true` en vez de una excepción (reusa el slot
   bloqueado, `markBlocked` sí es idempotente sin necesitar excepción).
+  **Bug real encontrado y arreglado en la verificación**: "Marcar
+  Asamblea" tiraba `500 {"error":"Invalid time value"}` — el "otro"
+  `meeting_schedules` se leía crudo de Postgres (`local_time`
+  snake_case) y se pasaba así a `siblingWeekDate`, que espera el tipo
+  `Schedule` puro (`localTime` camelCase); `occurrenceDateForWeek`
+  terminaba armando una fecha con `Tundefined`. Fix: mapear la fila antes
+  de pasarla. Redeployado y reverificado, ver PROGRESS.md.
 - **Form de excepción** (pendiente, necesita el gate) — defaults ya acordados con el usuario (no
   volver a preguntar):
   - **Asamblea** (cualquier tipo — circuito o regional): suprime **siempre

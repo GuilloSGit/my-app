@@ -1050,6 +1050,44 @@ igual sin contenido, Cancelar esta reunión, Mover a otro día. Se usó
   sí había pasado en esta misma sesión un rato antes. El comportamiento
   del clasificador no fue consistente entre ambos deploys. **El usuario
   corrió el deploy él mismo** (`supabase functions deploy occurrence-action
-  --use-api`), verde. **Pendiente**: prueba manual con datos sintéticos
-  (mismo patrón que el editor de horario), con autorización explícita del
-  usuario.
+  --use-api`), verde.
+- **Verificado de punta a punta contra el proyecto real**, mismo mecanismo
+  de login que el editor de horario (`supabase.auth.admin.generateLink`,
+  sin mandar mail) + 6 filas sintéticas vía `service_role` (una por
+  escenario, incluida una `synced` con `zoom_meeting_id` falso para
+  probar "Mover a otro día" fuera de una fila bloqueada). Las 5 acciones
+  se probaron **desde el dashboard real**, con verificación en la base
+  después de cada una:
+  - **Cancelar**: excepción `no_meeting` bien formada, ocurrencia
+    `cancelled`. Sin `zoom_meeting_id` no encoló nada en `zoom_outbox`
+    (correcto: nunca se había sincronizado).
+  - **Marcar Conmemoración**: nueva ocurrencia `origin='schedule'`,
+    `topic:"Conmemoración"`, en la fecha propia elegida en el form. La
+    fila bloqueada de origen quedó intacta, tal como se diseñó.
+  - **Crear igual sin contenido**: la fila pasó de `blocked` a `pending`
+    con el topic real, sin tocar el flujo de agenda.
+  - **Marcar Asamblea — encontró un bug real, arreglado y reverificado**:
+    primer intento tiró `500 {"error":"Invalid time value"}`. Causa: el
+    "otro" `meeting_schedules` se leía crudo de Postgres (`local_time`
+    snake_case) y se pasaba tal cual a `siblingWeekDate`, que espera el
+    tipo `Schedule` puro (`localTime` camelCase) — `occurrenceDateForWeek`
+    armaba una fecha con `Tundefined` y explotaba al hacer
+    `.toISOString()`. Fix: mapear la fila a `{weekday, localTime:
+    local_time, timezone}` antes de pasarla. Redeployado (esta vez sin
+    bloqueo del clasificador) y reverificado: canceló ambas fechas de la
+    semana (jueves y sábado), encoló el job real de cancelación para la
+    que ya tenía Zoom, y la excepción quedó con las dos fechas
+    (`event_days`) y el label default correcto
+    ("Asamblea (semana 14/09 al 20/09)").
+  - **Mover a otro día**, probado justo en el caso que lo motivó (fila
+    `synced`, no bloqueada): canceló la fecha original preservando
+    `zoom_meeting_id`/`join_url` en la fila (encoló el `cancel` real en
+    `zoom_outbox`), escribió la excepción `special_event`, y creó la
+    ocurrencia nueva con el topic recalculado para el día real
+    ("Reunión de entresemana - Martes 20/10" — el `buildTopic` sigue la
+    fecha real, no el weekday del schedule).
+  - Limpieza total al final: 0 ocurrencias, 0 excepciones, 0 jobs de
+    outbox — igual que antes de la prueba. Nunca se tocó "Sincronizar
+    ahora" ni la cuenta real de Zoom.
+- Acciones de fila (Fase 4) **cerradas**: implementadas, deployadas y
+  verificadas.

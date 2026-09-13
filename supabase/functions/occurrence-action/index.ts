@@ -166,7 +166,11 @@ Deno.serve(async (req) => {
 
         const eventDays = [dateOnly(startsAt)];
         if (otherSchedule) {
-          const siblingDate = siblingWeekDate(startsAt, schedule.timezone, otherSchedule);
+          const siblingDate = siblingWeekDate(startsAt, schedule.timezone, {
+            weekday: otherSchedule.weekday,
+            localTime: otherSchedule.local_time,
+            timezone: otherSchedule.timezone,
+          });
           eventDays.push(dateOnly(siblingDate));
 
           const { data: siblingOcc, error: siblingLookupError } = await supabase
