@@ -156,14 +156,22 @@ export class ZoomBrowserClient {
 
   private async setStartTime(page: Page, date: Date, timezone: string): Promise<void> {
     const label = zoomTimeOptionLabel(date, timezone);
-    // Es un combobox de texto libre (confirmado contra el DOM real: <input
-    // type="text" role="combobox">) — escribir el valor directo es más
-    // robusto que clickear una opción de una lista que puede no tener todo
-    // renderizado si hay que scrollear lejos del valor por defecto.
+    // `fill()` + `press("Enter")` deja el valor correcto VISIBLE en el
+    // input, pero no lo confirma en el estado interno de la app: apenas
+    // se toca cualquier otro campo del form (ej. el combobox de
+    // duración, que siempre se completa después), el input se re-renderiza
+    // con el default original ("18:00", la hora actual redondeada) y el
+    // "19:00" tipeado se pierde en silencio — encontrado y verificado
+    // 2026-09-13 reproduciendo la secuencia completa contra la cuenta
+    // real, causa de que las 10 reuniones de la primera corrida del cron
+    // quedaran agendadas a las 18:00 en vez de su horario real. Clickear
+    // la opción del dropdown (mismo patrón que ya usa `setDuration`) sí
+    // confirma el valor — verificado que sobrevive a elegir la duración
+    // después.
     const combobox = page.getByRole("combobox", { name: "Select start time" });
     await combobox.click();
     await combobox.fill(label);
-    await combobox.press("Enter");
+    await page.getByRole("option", { name: label, exact: true }).click();
   }
 
   private async setDuration(page: Page, durationMinutes: number): Promise<void> {

@@ -1365,3 +1365,57 @@ para nunca scriptear el login).
   misma falta de acceso a la API REST de Zoom que pausó Fase 2). El
   resto de Fase 5 (retirar el flujo manual, actualizar README/ARCHITECTURE)
   también sigue pendiente.
+
+## 2026-09-13 (misma fecha, continuación) — Arreglado: horario fijo en 18:00 + detección de duplicados
+
+El usuario revisó la cuenta real de Zoom (no la vista de mes del admin)
+y encontró dos problemas con capturas de pantalla.
+
+- **Reuniones duplicadas — diagnosticado, no es un bug**: `/dashboard`
+  (lo que usa la congregación) lee de la tabla vieja `meetings`
+  (`lib/meetings.ts`, flujo manual), no de `meeting_occurrences` — las 10
+  reuniones nuevas de la automatización conviven en paralelo con la
+  reunión vieja manual, sin pisarla ni reemplazarla. No es caché ni un
+  bug — es que el corte de Fase 5 ("retirar zoom-import-dialog/
+  zoom-parser, pasar `/dashboard` a `meeting_occurrences`") todavía no
+  pasó. Decisión del usuario: **dejar las dos en paralelo por ahora**, no
+  improvisar el corte en esta sesión.
+- **Horario fijo en 18:00 — bug real, encontrado y arreglado**. Causa
+  raíz confirmada reproduciendo la secuencia completa de `createMeeting`
+  contra la cuenta real, inspeccionando el valor del combobox de hora en
+  cada paso:
+  1. `setStartTime` escribe el valor con `combobox.fill(label)` +
+     `combobox.press("Enter")` — esto deja el valor **visible en el
+     input** ("19:00"), pero **no lo confirma en el estado interno de la
+     app** (probablemente un componente controlado que no escucha el
+     evento que dispara `press("Enter")` en este widget en particular).
+  2. El siguiente paso, `setDuration`, abre y selecciona el combobox de
+     horas de duración — esa interacción dispara un re-render del bloque
+     de horario que **pisa el input de hora con su valor "real" (el
+     default, la hora actual redondeada — "18:00")**, perdiendo el
+     "19:00" tipeado sin ningún error visible.
+  3. Por eso las 12 ocurrencias de la primera corrida real quedaron
+     **todas** a las 18:00 (coincidencia: igual al horario real del
+     sábado, por eso solo se notó en las reuniones de jueves).
+  - **Fix**: en vez de `press("Enter")`, clickear la opción del dropdown
+    (`getByRole("option", { name: label, exact: true })`) — mismo patrón
+    que ya usa `setDuration` con éxito, que sí genera un evento que el
+    componente escucha. Verificado reproduciendo la secuencia completa de
+    nuevo: el valor sobrevive a la selección de duración.
+  - `setStartTime` es compartido por `createMeeting` y `updateMeeting`, el
+    fix cubre ambos caminos con un solo cambio.
+- **Corregidas las 10 reuniones reales ya creadas**: script puntual (no
+  commiteado) usando `ZoomBrowserClient.updateMeeting` directo — mismo
+  mecanismo que ya usa `apply.ts`, reusando el código real en vez de un
+  script ad-hoc — con los valores correctos (`starts_at`/`topic`/`agenda`/
+  `duration_minutes`) leídos de `meeting_occurrences`. Las 10 corrieron
+  sin error, y se verificó **una por una contra Zoom real** (no solo
+  confiar en la ausencia de excepciones, mismo criterio de siempre): las
+  10 muestran el horario correcto (jueves 19:00 / sábado 18:00, zona
+  "Buenos Aires, Georgetown") y el `join_url` de cada una **no cambió**
+  (el mecanismo de "Edit" preservó el link).
+- Ambos diagnósticos (chevron ayer, horario hoy) se hicieron con el mismo
+  método: reproducir la secuencia real paso a paso contra la cuenta real
+  (autorizado, sesión Playwright aparte) e inspeccionar el DOM/valor en
+  cada paso hasta encontrar el punto exacto donde diverge — no adivinar
+  el selector/interacción a partir del mensaje de error solo.
