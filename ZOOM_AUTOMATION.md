@@ -588,12 +588,25 @@ job reintenta.
   - **Acontecimiento especial** (genérico): se pre-marca como sugerencia
     editable el checkbox de la reunión cuyo día caiga en `event_days`, pero
     queda abierto a edición manual — no es una regla fija.
-- **Editor de horario con preview** (pendiente, necesita el gate): antes de guardar un cambio de horario,
-  correr el reconciliador en modo `dryRun` (`reconcile` con
-  `dryRun:true`, ya implementado y probado en Fase 1) y mostrar el diff en
-  texto plano. No opcional — sin el preview, el usuario no confía en el
-  botón y vuelve al proceso manual. Reemplaza la carga manual de
-  `meeting_schedules` de arriba.
+- **Editor de horario con preview — implementado 2026-09-13** (falta deploy real +
+  verificación contra la cuenta): Edge Function `schedule-write`
+  (`supabase/functions/schedule-write/index.ts`) + diálogo
+  `components/schedule-editor-dialog.tsx`. El preview usa `expand()` +
+  `diffOccurrences()` (emparejamiento posicional, no `reconcile` en modo
+  `dryRun` — ese mecanismo sigue siendo el de la corrida diaria por fecha
+  fija; el editor de horario necesita reordenar/mover filas existentes por
+  `id`, que es justo lo que resuelve el diff posicional). Editable: día,
+  hora, duración — zona horaria fija, `kind` no editable, sin alta de
+  schedules nuevos. El diff se recalcula siempre server-side, tanto en el
+  preview como en el guardado. No dispara sync automático a Zoom al
+  guardar (decisión explícita del usuario) — sigue haciendo falta apretar
+  "Sincronizar ahora" o esperar el backstop.
+  **Gotcha real encontrado antes de escribir código**: `expand()` arma
+  `agenda: null` siempre en el lado "desired" — la función SQL que aplica
+  un `update` (`schedule_write_update_occurrence`) tiene que preservar el
+  `agenda` real de la fila (releyéndola con `returning`, nunca recibiéndola
+  como parámetro), si no cualquier cambio de horario borraría la agenda ya
+  sincronizada de Zoom. Ver PROGRESS.md 2026-09-13 para el detalle.
 - **`reconcile_runs.finished_at` siempre visible — implementado**, aunque
   no haya nada pendiente (mismo entregable que la vista de mes) — un
   tablero que dice "todo bien" y uno con "última corrida hace 9 días" se

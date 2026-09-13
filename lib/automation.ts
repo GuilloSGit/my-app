@@ -167,6 +167,8 @@ export async function getLatestReconcileRuns(): Promise<ReconcileRunSummary[]> {
   return latest;
 }
 
+export const WEEKDAY_LABEL = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
 const SCHEDULE_KIND_LABEL: Record<ScheduleKind, string> = {
   midweek: "Entresemana",
   weekend: "Fin de semana",
@@ -195,4 +197,38 @@ export async function triggerZoomSync(): Promise<{ ok: boolean; error?: string }
   const { error } = await supabase.functions.invoke("zoom-apply-dispatch", { method: "POST" });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// Editor de horario (Fase 4): preview (commit:false) y guardado
+// (commit:true) de un cambio a meeting_schedules, ambos resueltos por la
+// misma Edge Function (schedule-write) — el diff SIEMPRE se recalcula del
+// lado del servidor, este tipo solo refleja lo que esa función devuelve.
+export interface ScheduleWriteOp {
+  kind: "create" | "update" | "cancel";
+  occurrenceId?: string;
+  zoomMeetingId?: number | null;
+  topic: string;
+  startsAt: string; // ISO
+  previousTopic?: string;
+  previousStartsAt?: string; // ISO
+}
+
+export interface ScheduleWriteInput {
+  scheduleId: string;
+  weekday: number;
+  localTime: string; // "HH:mm"
+  durationMinutes: number;
+  commit: boolean;
+}
+
+export type ScheduleWriteResult =
+  | { ok: true; ops: ScheduleWriteOp[]; committed: boolean; errors: string[] }
+  | { ok: false; error: string };
+
+export async function writeSchedule(input: ScheduleWriteInput): Promise<ScheduleWriteResult> {
+  const { data, error } = await supabase.functions.invoke("schedule-write", { body: input });
+  if (error) return { ok: false, error: error.message };
+
+  const result = data as { ops: ScheduleWriteOp[]; committed: boolean; errors?: string[] };
+  return { ok: true, ops: result.ops, committed: result.committed, errors: result.errors ?? [] };
 }

@@ -35,14 +35,19 @@ correctamente el frontend estático y el flujo de `meetings` — no se
 reescribe hasta que esa feature esté completa y pase a ser el sistema
 autoritativo (Fase 5 del roadmap).
 
-**Fase 4 (2026-09-13, primer entregable): `app/dashboard/automatizacion/page.tsx`**
-(admin-only) + `lib/automation.ts` son la primera pieza de UI de esa
-automatización — vista de mes de solo lectura sobre `meeting_schedules`/
+**Fase 4 (2026-09-13): `app/dashboard/automatizacion/page.tsx`**
+(admin-only) + `lib/automation.ts` — vista de mes sobre `meeting_schedules`/
 `meeting_occurrences`/`reconcile_runs`, mismo patrón de `lib/meetings.ts`
-(funciones async sobre el cliente Supabase del browser). Todavía sin
-ningún botón de escritura — ver `ZOOM_AUTOMATION.md` sección "Interfaz"
-para el porqué (gate de admin nuevo, pendiente) y el resto de la
-estructura de carpetas de esta feature.
+(funciones async sobre el cliente Supabase del browser). Gate de admin
+nuevo (`supabase/functions/_shared/admin-auth.ts#requireAdmin`, valida el
+JWT de sesión + `ADMIN_EMAILS` server-side — distinto del token interno
+estático que usan `reconcile`/`zoom-apply`) habilitó las primeras dos
+escrituras: botón "Sincronizar ahora" (`zoom-apply-dispatch`, dispara
+`zoom-apply-browser.yml` vía la API de GitHub) y el editor de horario
+(`schedule-write` + `components/schedule-editor-dialog.tsx`, día/hora/
+duración con preview obligatorio antes de guardar). Ver `ZOOM_AUTOMATION.md`
+sección "Interfaz" para el detalle y el resto de la estructura de carpetas
+de esta feature.
 
 **`zoom-automation/` (Fase 2-bis, 2026-09-12): la cuenta Zoom real de la
 congregación resultó ser una sub-cuenta administrada por una organización

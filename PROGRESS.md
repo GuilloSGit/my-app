@@ -880,3 +880,74 @@ no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
     corrida de GitHub Actions disparada (run `34770345918`) → terminó en
     verde (52s) sin capturas de falla. Botón "Sincronizar ahora" cerrado,
     Fase 4 sin pendientes de este entregable.
+
+## 2026-09-13 (misma fecha, nueva sesión) — Editor de horario (`schedule-write`)
+
+Último punto pendiente de Fase 4 (acciones de fila y form de excepción
+quedan para más adelante, elegido así por el usuario). Se usó
+`/EnterPlanMode` antes de codear — plan en
+`~/.claude/plans/eager-sniffing-giraffe.md`.
+
+- **Hallazgo importante, encontrado leyendo el código antes de escribir
+  nada**: `expand()` arma cada `DesiredOccurrence` con `agenda: null`
+  siempre (es un generador de calendario puro, no sabe nada de WOL). Si
+  la función SQL que aplica un `update` de `diffOccurrences` hubiera
+  escrito ese `agenda` tal cual, **cualquier edición de horario habría
+  borrado la agenda ya sincronizada** de las próximas ocurrencias — y ese
+  blank se habría propagado al PATCH real de Zoom vía `zoom_outbox`,
+  mismo tipo de bug que ya se había evitado una vez con `join_url` en
+  Fase 2. Se resolvió en la función SQL: `schedule_write_update_occurrence`
+  nunca recibe `agenda` como parámetro, la relee de la fila recién
+  actualizada (`returning agenda`) y la reusa tal cual en el payload del
+  outbox. Documentado con un comentario explícito en la migración para que
+  nadie lo "simplifique" mal en el futuro.
+- **Migración `20260913120000_schedule_write_functions.sql`**: dos
+  funciones `SECURITY DEFINER` nuevas,
+  `schedule_write_update_occurrence`/`schedule_write_cancel_occurrence` —
+  a diferencia de `reconciler_upsert_occurrence`/`reconciler_cancel_occurrence`
+  (que escriben por fecha, para el reconciliador diario), estas escriben
+  por **`id`** de ocurrencia, porque el emparejamiento posicional de
+  `diffOccurrences` ya resuelve qué fila existente corresponde a cada
+  cambio — escribir por fecha acá habría dejado duplicados cuando cambia
+  el día/hora. `create` reutiliza `reconciler_upsert_occurrence` sin
+  cambios (insertar por fecha nueva no tiene el mismo problema).
+- **Lógica pura nueva** en
+  `supabase/functions/_shared/reconciler/schedule-write.ts`
+  (`computeScheduleWriteOps`): wrapper delgado sobre `expand()` +
+  `diffOccurrences()` (ya escritos y testeados en Fase 1, sin consumidor
+  real hasta ahora), mismo horizonte de 1 mes que `reconcileMonth`. 5
+  tests nuevos en `__tests__/reconciler/schedule-write.test.ts` (cambio de
+  hora pura sin `previousTopic`, cambio de día con `previousTopic`, actual
+  más corto → `create`, actual más largo → `cancel`, sin cambios → `[]`).
+- **Edge Function nueva** `supabase/functions/schedule-write/index.ts`,
+  mismo esqueleto que `zoom-apply-dispatch` (`requireAdmin` + CORS, ya
+  reusables sin cambios). El diff se recalcula **siempre** contra el
+  estado real de la base, tanto en preview (`commit:false`) como en el
+  guardado (`commit:true`) — nunca confía en un diff mandado por el
+  cliente, así no importa cuánto tiempo pase entre "Ver cambios" y
+  "Confirmar". `commit:true` aplica cada op con `try/catch` individual
+  (una que falla no frena a las demás, mismo principio que
+  `reconcileMonth`) y devuelve `errors: []` — el frontend nunca asume
+  éxito silencioso.
+- **Alcance decidido con el usuario**: solo día/hora/duración son
+  editables (zona horaria fija, se muestra pero no se edita; `kind` no se
+  toca — no hay alta de schedules nuevos en esta iteración). Guardar
+  **no** dispara sync automático a Zoom — el admin sigue usando
+  "Sincronizar ahora" por separado, o espera el backstop de 2 días.
+- **Frontend**: `components/schedule-editor-dialog.tsx` (nuevo, mismo
+  esqueleto de dos pasos que `zoom-import-dialog.tsx`: form → preview en
+  texto plano, con líneas "Crear/Mover/Actualizar/Cancelar — fecha"),
+  botón "Editar horario" en cada card de `/dashboard/automatizacion`.
+  `lib/automation.ts#writeSchedule` (mismo patrón no-throw que
+  `triggerZoomSync`) + `WEEKDAY_LABEL` movido ahí desde `page.tsx` para
+  reusarlo en el diálogo.
+- Suite verde: `npm run lint`, `npm test` (147 tests, +6 nuevos), `npm run
+  build` (incluye `tsc`), y `deno check` sobre los dos archivos nuevos de
+  `supabase/functions/` — los cuatro sin errores.
+- **Pendiente**: deploy real (`supabase db push` para la migración +
+  `supabase functions deploy schedule-write --use-api`) y verificación
+  manual contra la cuenta real — el usuario corre el deploy/push él mismo
+  (mismo patrón que el resto de Fase 4, bloqueado para el asistente por el
+  clasificador de modo automático), y la prueba manual necesita su
+  autorización explícita para tocar la cuenta real de Zoom, igual que en
+  Fase 2-bis/Fase 3.
