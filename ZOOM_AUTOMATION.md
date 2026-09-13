@@ -656,7 +656,7 @@ job reintenta.
 
 ---
 
-## Jobs (Fase 5, todavía no implementado) — revisado 2026-09-12 tras el pivot a Fase 2-bis
+## Jobs (Fase 5) — `reconcile` implementado, deployado y verificado 2026-09-13
 
 El spec original asumía que `zoom-apply` era una Edge Function (barata de
 llamar seguido, cron cada 2 minutos con sentido). Con el pivot a
@@ -669,9 +669,9 @@ usuario:
 
 | Job | Dónde corre | Horario | Qué hace |
 |---|---|---|---|
-| `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola create/update/cancel en `zoom_outbox` (el `update` cubre el caso de "agenda que cambió", ver Fase 3) |
+| `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola create/update/cancel en `zoom_outbox` (el `update` cubre el caso de "agenda que cambió", ver Fase 3) — **activado 2026-09-13**, `cron.schedule('reconcile-every-2-days', ...)`, migración `20260913150000_reconcile_cron.sql` |
 | `zoom-apply-browser` | GitHub Actions | **sin cron propio** | drena el outbox manejando el navegador |
-| `drift-check` | Supabase (pg_cron) | semanal | reporta divergencias Zoom real vs. DB, nunca corrige |
+| `drift-check` | Supabase (pg_cron) | semanal | reporta divergencias Zoom real vs. DB, nunca corrige — **sin diseñar todavía**, bloqueado por la misma falta de acceso a la API REST de Zoom que pausó Fase 2 |
 
 **Sin `wol-enrich` como job aparte** (revisado 2026-09-12, ver "Contenido
 desde wol.jw.org" arriba): el propio `reconcile` ya retoma `wol_unreachable`
@@ -680,17 +680,27 @@ ocurrencia sincronizada cambia — agregar una función diaria extra solo para
 esto no se justificaba frente al costo de mantenerla, dado que el contenido
 de WOL está disponible casi siempre dentro del horizonte de 1 mes.
 
-**Aislamiento entre schedules — pendiente de diseño para cuando se active
-el cron real (Fase 5)**: `reconcile` (la Edge Function) procesa un solo
-`scheduleId` por invocación; todavía no existe el driver que la dispare una
-vez por cada `meeting_schedules` activo (hoy son 2: entresemana y fin de
-semana). Cuando se implemente ese driver, tiene que disparar un
-`net.http_post` independiente por schedule (mismo patrón fire-and-forget
+**Aislamiento entre schedules — implementado 2026-09-13**: el driver que
+faltaba es un solo `select net.http_post(...) from meeting_schedules
+where active = true` dentro del `cron.schedule` — dispara un
+`net.http_post` independiente por fila (fire-and-forget, mismo patrón
 verificado en el spike de pg_cron→pg_net de Fase 0) para que la falla de
-uno no bloquee al otro — nunca esperar la respuesta de un schedule antes de
-disparar el siguiente. Dentro de una misma invocación (un schedule, varias
-semanas del mes) esto ya está resuelto: `reconcileMonth` aísla cada semana
-en su propio `try/catch`.
+uno no bloquee al otro, generalizado a los schedules que estén `active`
+en vez de hardcodear los 2 IDs actuales. El token (`RECONCILE_INTERNAL_TOKEN`)
+se lee de Supabase Vault por nombre (`reconcile_internal_token`) — nunca
+en texto plano en la migración versionada, mismo criterio que ya dejaba
+anotado el comentario de la migración de Fase 0. Dentro de una misma
+invocación (un schedule, varias semanas del mes) esto ya estaba resuelto
+desde Fase 1: `reconcileMonth` aísla cada semana en su propio `try/catch`.
+
+**Verificado de punta a punta 2026-09-13** disparando una corrida real a
+mano (sin esperar los 2 días del cron): `reconcile` corrió para los 2
+schedules, 0 issues, creó las 12 ocurrencias reales del próximo mes con
+agenda real de WOL — primera vez que `meeting_occurrences` deja de estar
+vacía en producción. Ver PROGRESS.md para el detalle completo, incluido
+un bug real encontrado en el último tramo (Playwright no encuentra
+"Schedule a Meeting" en Zoom, apunta a sesión expirada — no relacionado
+con el cron en sí, pendiente de recapturar la sesión).
 
 **Cómo se dispara `zoom-apply-browser` sin cron propio** (dos caminos,
 mismo principio que ya regía en el spec original — "el caso común se
@@ -709,12 +719,16 @@ más seguido ya no es gratis):
    genera y lo carga él mismo (`supabase secrets set GITHUB_PAT=...`),
    mismo patrón que toda credencial real de este proyecto. Da sync casi
    instantáneo cuando el admin edita algo.
-2. **Backstop automático cada 2 días**: al terminar su corrida, el propio
-   `reconcile` dispara el mismo `zoom-apply-dispatch` (fire-and-forget,
-   igual que el spec original preveía para la Edge Function `zoom-apply`
-   pausada) — así lo que quedó pendiente sin que nadie apretara el botón
-   igual se aplica, sin necesitar un cron de GitHub Actions corriendo
-   seguido.
+2. **Backstop automático cada 2 días — implementado y verificado 2026-09-13**:
+   al terminar su corrida (solo si no es `dryRun`), el propio `reconcile`
+   llama **directo** a `dispatchZoomApplyWorkflow` (la misma función pura
+   que usa `zoom-apply-dispatch`, no a través de esa Edge Function —
+   `zoom-apply-dispatch` usa `requireAdmin`, gate de JWT de sesión
+   pensado para el browser de un admin, y `reconcile` es server-to-server
+   sin JWT de usuario) — así lo que quedó pendiente sin que nadie
+   apretara el botón igual se aplica, sin necesitar un cron de GitHub
+   Actions corriendo seguido. Envuelto en `try/catch`: un fallo del
+   dispatch no tira abajo la respuesta de `reconcile`.
 
 `drift-check` es barato y avisa temprano de que la regla "no se toca desde
 Zoom" se rompió — no corrige automáticamente, reporta.

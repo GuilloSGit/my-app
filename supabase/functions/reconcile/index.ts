@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { reconcileMonth } from "../_shared/reconciler/reconcile.ts";
 import { makeDbPorts, makeDryRunPorts } from "../_shared/reconciler/db-ports.ts";
 import type { Schedule } from "../_shared/reconciler/types.ts";
+import { dispatchZoomApplyWorkflow } from "../_shared/github/dispatch-workflow.ts";
 
 // Función interna: la invoca el cron (Fase 5, via pg_net + Vault) o una
 // herramienta admin, nunca el browser de un usuario común. El gate no es
@@ -77,6 +78,7 @@ Deno.serve(async (req) => {
 
   // El dry-run es un preview: no ensucia reconcile_runs (esa tabla refleja
   // corridas reales del cron/apply, no sondeos del editor de horario).
+  let dispatched: { ok: boolean; error?: string } | undefined;
   if (!isDryRun) {
     await supabase.from("reconcile_runs").insert({
       schedule_id: schedule.id,
@@ -84,9 +86,22 @@ Deno.serve(async (req) => {
       finished_at: new Date().toISOString(),
       issues,
     });
+
+    // Fase 5: backstop real. Llamado directo a dispatchZoomApplyWorkflow
+    // (no a la Edge Function zoom-apply-dispatch) porque esa usa
+    // requireAdmin -- gate de JWT de sesión pensado para el browser de un
+    // admin -- y reconcile es server-to-server, sin JWT de usuario. Un
+    // fallo acá no tiene que tirar abajo la respuesta de reconcile (ya
+    // escribió todo lo que tenía que escribir); el backstop de "Sincronizar
+    // ahora" sigue disponible igual si esto falla.
+    try {
+      dispatched = await dispatchZoomApplyWorkflow({ githubPat: Deno.env.get("GITHUB_PAT")! });
+    } catch (e) {
+      dispatched = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   }
 
-  return new Response(JSON.stringify({ issues, dryRun: isDryRun, recorded }), {
+  return new Response(JSON.stringify({ issues, dryRun: isDryRun, recorded, dispatched }), {
     headers: { "Content-Type": "application/json" },
   });
 });

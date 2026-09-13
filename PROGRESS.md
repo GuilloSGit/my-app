@@ -1153,3 +1153,100 @@ igual sin contenido, Cancelar esta reunión, Mover a otro día. Se usó
   6 entregables implementados, deployados y verificados contra el
   proyecto real. Sigue Fase 5 (cron real + drift-check + retiro del
   flujo manual).
+
+## 2026-09-13 (misma fecha, nueva sesión) — Fase 5: cron real de `reconcile` + auto-disparo a Zoom
+
+Primer punto de Fase 5. Se usó `/EnterPlanMode` — plan en
+`~/.claude/plans/eager-sniffing-giraffe.md`. Confirmado con el usuario
+antes de codear: `wol-enrich` no se crea (decisión ya tomada en Fase 3,
+el checklist de `ROADMAP.md` solo tenía texto desactualizado), el
+auto-disparo a Zoom va en el mismo cambio (no por etapas), y `drift-check`
+queda afuera de esta ronda (bloqueado por la misma falta de acceso a la
+API REST de Zoom que pausó Fase 2 — la única vía viva es Playwright, que
+hoy no sabe "listar todo y comparar").
+
+- **`reconcile` ahora dispara el auto-sync al terminar** (solo en
+  corridas reales, nunca en `dryRun`): llama `dispatchZoomApplyWorkflow`
+  **directo** (la función pura que ya usaba `zoom-apply-dispatch`), no a
+  través de esa Edge Function — `zoom-apply-dispatch` usa `requireAdmin`
+  (gate de JWT de sesión, pensado para el browser de un admin) y
+  `reconcile` es server-to-server, sin JWT de usuario, así que pasar por
+  ahí hubiera fallado siempre. Envuelto en `try/catch`, un fallo del
+  dispatch no tira abajo la respuesta de `reconcile` (que ya escribió
+  todo lo suyo) — se agrega `dispatched: {ok, error?}` a la respuesta.
+- **Migración `20260913150000_reconcile_cron.sql`**: `cron.schedule`
+  (pg_cron/pg_net ya habilitados desde Fase 0) con un solo
+  `select net.http_post(...) from meeting_schedules where active = true`
+  — dispara un `net.http_post` **independiente por fila**, el driver que
+  faltaba desde Fase 0/2-bis (antes hardcodeaba los 2 IDs, ahora
+  generaliza a lo que esté `active`). El token nunca va en la migración
+  (secret real) — se lee de Supabase Vault por nombre
+  (`reconcile_internal_token`); el usuario lo carga aparte, nunca por
+  acá. `'0 6 */2 * *'` es una aproximación aceptada de "cada 2 días"
+  (días impares del calendario, puede dar 1 o 3 días de separación en un
+  cambio de mes) — es un backstop, no una garantía exacta.
+- **Carga del secret de Vault — dos intentos bloqueados, uno exitoso**:
+  intenté generar el token y cargarlo yo mismo (`supabase secrets set` +
+  `supabase db query` con `vault.create_secret`) — bloqueado por el
+  clasificador de modo automático (categoría "Secret-Store Writes"). El
+  usuario lo hizo él mismo, pero **pegó el valor generado en el chat dos
+  veces** (una vez la salida de `openssl rand -hex 32`, otra vez el
+  comando completo `supabase secrets set RECONCILE_INTERNAL_TOKEN=...`)
+  pese a que se le pidió explícitamente no hacerlo — señalado las dos
+  veces, mismo patrón que ya había pasado antes en esta sesión (ver
+  [[feedback-flag-shared-credentials]]). La tercera vez sí lo hizo bien
+  (bloque completo en su propia terminal, sin pegar ni el comando ni la
+  salida) y confirmó éxito pegando solo el resultado de
+  `vault.create_secret` (un UUID, no el secreto).
+- **Deploy sin bloqueo esta vez**: `supabase db push` +
+  `supabase functions deploy reconcile --use-api`, ambos corridos por mí
+  sin que el clasificador interviniera (a diferencia de otros deploys de
+  esta sesión, donde sí bloqueó).
+- **Verificación real, autorizada explícitamente por el usuario**: en vez
+  de esperar hasta 2 días al primer disparo del cron, se disparó una vez
+  a mano el mismo `net.http_post` (vía `supabase db query`, corrido por
+  el usuario — a mí me bloqueó el clasificador con "Production Deploy").
+  Resultado:
+  - `reconcile` corrió para los 2 schedules, **0 issues** — creó **12
+    ocurrencias reales** (6 entresemana + 6 fin de semana, hasta el
+    17/10) con **agenda real de WOL** (títulos y URLs reales de
+    wol.jw.org), 12 jobs `create` encolados en `zoom_outbox`. Primera vez
+    que `meeting_occurrences` deja de estar vacía en producción —
+    pendiente desde Fase 4.
+  - El auto-disparo nuevo **funcionó**: las dos llamadas a `reconcile`
+    (una por schedule) dispararon, cada una, su propio
+    `zoom-apply-browser` — dos corridas de GitHub Actions casi
+    simultáneas, ambas terminaron en verde.
+  - **Bug real encontrado, sin arreglar todavía**: los 12 jobs quedaron
+    `pending` — las dos corridas fallaron **desde el primer job**,
+    mismo error en las dos: `locator.click: Timeout 30000ms exceeded`
+    esperando `getByRole('button', { name: 'Schedule a Meeting' })`.
+    Se descartó la hipótesis de que fuera la concurrencia de las dos
+    corridas simultáneas peleando por la misma sesión de Zoom: se
+    disparó una **tercera corrida sola** (sin concurrencia) y falló
+    exactamente igual, desde el primer job también. **Apunta a que la
+    sesión de Zoom capturada expiró** — riesgo ya documentado
+    explícitamente desde Fase 2-bis ("la sesión expira en algún momento
+    no documentado por Zoom, hay que recapturarla a mano cuando pase").
+    No se pudo confirmar visualmente (las capturas de pantalla de falla
+    se guardan en el runner pero el step de subirlas como artifact no
+    corrió — **gotcha nuevo, sin investigar**: el job de GitHub Actions
+    reporta éxito general aunque jobs individuales del outbox fallen
+    puertas adentro, así que el `if: failure()` del step de upload nunca
+    dispara).
+  - Los 12 jobs siguen reintentando solos (backoff exponencial, sin
+    causar daño real — no hay riesgo de duplicar nada, `dequeue_zoom_jobs`
+    usa `for update skip locked`). **Decisión del usuario: dejarlo
+    documentado y no recapturar la sesión en esta sesión** — la cadena
+    completa (cron → reconcile → outbox → dispatch → GitHub Actions) está
+    verificada y funcionando; lo único pendiente es el último tramo
+    (Playwright contra Zoom real), bloqueado por algo ajeno a los cambios
+    de hoy.
+- Suite verde: `npm run lint`, `npm test` (155 tests, sin cambios — no
+  hubo lógica pura nueva), `npm run build`, `deno check` sobre
+  `reconcile/index.ts` — sin errores.
+- **Pendiente real para la próxima sesión**: recapturar la sesión de Zoom
+  (`npm run zoom:capture-session`, login interactivo del usuario) y
+  volver a correr `zoom-apply-browser` a mano para confirmar que los 12
+  jobs pendientes se aplican bien. Investigar por qué el step de subir
+  capturas de falla no corre. `drift-check` sigue sin diseñar.
