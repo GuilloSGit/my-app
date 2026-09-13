@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import LoginPage from "@/app/login/page";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -40,10 +39,18 @@ beforeEach(() => {
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
+// Import dinámico después de vi.stubEnv (en beforeEach): lib/authorized-emails.ts
+// computa la lista al importarse, no en cada llamada — un import estático arriba
+// del archivo la fijaría antes de que corra el stub de cada test.
+async function renderLoginPage() {
+  const { default: LoginPage } = await import("@/app/login/page");
+  return render(<LoginPage />);
+}
+
 describe("LoginPage", () => {
   it("email no inscripto: no llama a Supabase y muestra un mensaje prudente", async () => {
     const user = userEvent.setup();
-    render(<LoginPage />);
+    await renderLoginPage();
 
     await user.type(screen.getByPlaceholderText("tu@email.com"), "intruso@gmail.com");
     await user.click(screen.getByRole("button", { name: /enviar enlace de acceso/i }));
@@ -58,7 +65,7 @@ describe("LoginPage", () => {
 
   it("email autorizado: llama a Supabase y muestra 'revisá tu correo'", async () => {
     const user = userEvent.setup();
-    render(<LoginPage />);
+    await renderLoginPage();
 
     await user.type(screen.getByPlaceholderText("tu@email.com"), "guillermoandrada@gmail.com");
     await user.click(screen.getByRole("button", { name: /enviar enlace de acceso/i }));
@@ -74,7 +81,7 @@ describe("LoginPage", () => {
   it("si Supabase devuelve error, lo muestra tal cual (sin redirigir)", async () => {
     mockSignInWithOtp.mockResolvedValue({ error: { message: "Demasiados intentos, esperá un minuto" } });
     const user = userEvent.setup();
-    render(<LoginPage />);
+    await renderLoginPage();
 
     await user.type(screen.getByPlaceholderText("tu@email.com"), "guillermoandrada@gmail.com");
     await user.click(screen.getByRole("button", { name: /enviar enlace de acceso/i }));
@@ -88,7 +95,7 @@ describe("LoginPage", () => {
       data: { session: { user: { email: "guillermoandrada@gmail.com" } } },
     });
 
-    render(<LoginPage />);
+    await renderLoginPage();
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
   });

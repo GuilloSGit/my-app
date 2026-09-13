@@ -1,8 +1,9 @@
 import type { AuthUser } from "./auth";
 
-const ADMIN_EMAILS =
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL ||
-  "guillermoandrada@gmail.com,pelayesthiago2@gmail.com,congregacionmediaagua7146@gmail.com";
+// Viene de la GitHub Actions Variable NEXT_PUBLIC_ADMIN_EMAIL (ver
+// .github/workflows/deploy.yml) en producción, y de .env (gitignoreado) en
+// desarrollo local — nunca hardcodeado acá.
+const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 export function isAdmin(user: AuthUser | null): boolean {
   if (!user?.email) return false;
