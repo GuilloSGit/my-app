@@ -32,9 +32,21 @@ export async function reconcileWeek(
   week: string,
   issues: Issue[],
   ports: ReconcilePorts,
+  now: Date,
 ): Promise<void> {
   const schedule = await ports.getSchedule(scheduleId);
   const date = occurrenceDateForWeek(schedule, week);
+
+  // La semana que contiene `now` puede tener su día de reunión ya pasado
+  // (depende de qué día de esa semana caiga la corrida respecto al
+  // weekday del schedule -- con un cron cada 2 días esto pasa seguido, no
+  // es solo un caso de la primera corrida). Nada que reconciliar: Zoom no
+  // permite agendar en el pasado, y aunque lo permitiera no tendría
+  // sentido. Se corta antes de tocar excepciones/WOL a propósito, no solo
+  // antes de escribir.
+  if (date.getTime() < now.getTime()) {
+    return;
+  }
 
   const exception = await ports.findException(date, schedule.kind);
   if (exception) {
@@ -98,7 +110,7 @@ export async function reconcileMonth(
 
   for (const week of weeks) {
     try {
-      await reconcileWeek(scheduleId, week, issues, ports);
+      await reconcileWeek(scheduleId, week, issues, ports, now);
     } catch (e) {
       issues.push({
         week,

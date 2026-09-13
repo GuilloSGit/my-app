@@ -1290,3 +1290,43 @@ para nunca scriptear el login).
   Ambos van a terminar en `status:'failed'` solos tras 5 intentos
   (backoff exponencial), sin causar ningún daño — quedan como pendiente
   real para la próxima sesión, junto con `drift-check` (sin diseñar).
+
+## 2026-09-13 (misma fecha, continuación) — Arreglado: fechas ya pasadas
+
+- **Causa raíz confirmada**: `reconcileMonth` arma su horizonte con
+  `isoWeeksBetween(now, addMonths(now, 1))`, y la primera semana de esa
+  lista es la que **contiene** a `now` — no la que empieza en `now`. Si
+  el día de reunión del schedule (ej. jueves) ya pasó dentro de esa
+  semana calendario cuando corre `reconcile` (ej. corre un domingo), la
+  fecha calculada por `occurrenceDateForWeek` queda en el pasado, y
+  `reconcileWeek` la trataba como cualquier otra — creaba/actualizaba la
+  ocurrencia igual, y Zoom no puede agendar ahí. **No es un caso raro de
+  la primera corrida**: con el cron cada 2 días, va a repetirse cada vez
+  que la corrida caiga después del día de reunión de esa semana.
+- **Fix**: `reconcileWeek` ahora recibe `now` como parámetro y corta
+  antes de tocar excepciones/WOL si `date < now` — no genera ningún
+  `Issue` (saltear una semana ya pasada no es un problema a reportar, es
+  el comportamiento esperado). `supabase/functions/_shared/reconciler/reconcile.ts`,
+  `supabase/functions/reconcile/index.ts` no cambió (ya pasaba `now` a
+  `reconcileMonth`, que ahora lo reenvía a `reconcileWeek`).
+- **2 tests nuevos** (157 en total): `reconcileWeek` con `now` después
+  del día de reunión de esa semana → sin issues, sin tocar WOL/ports;
+  `reconcileMonth` reproduciendo el bug real (semana 37 con `now`
+  cayendo un domingo, después del jueves de esa semana) → esa semana se
+  salta sola, el resto del horizonte se procesa normal. Se actualizaron
+  las 6 llamadas existentes a `reconcileWeek` en los tests (nuevo
+  parámetro `now` requerido) — todas usaban semanas futuras respecto al
+  `now` que ya tenían, sin cambio de comportamiento.
+- Suite verde: `npm run lint`, `npm test` (157 tests), `npm run build`,
+  `deno check` — sin errores. Deploy de `reconcile` corrido sin bloqueo
+  del clasificador.
+- **Limpieza de los 2 registros huérfanos en producción**: las
+  ocurrencias del 10/09 y 12/09 (creadas antes del fix) se cancelaron
+  (`schedule_write_cancel_occurrence`, razón `past_date`) y se borraron
+  sus 2 jobs de `zoom_outbox` que venían reintentando sin poder
+  aplicarse — nunca hubiera pasado nada malo (Zoom rechazaba la fecha),
+  pero hubieran terminado en `status:'failed'` sin necesidad.
+- **Pendiente real, sin tocar**: el bug de UI distinto (ícono de flecha
+  no clickeable, jobs 26/27, fechas futuras 15/10 y 17/10) — no
+  relacionado con este fix, sigue en la cola reintentando solo.
+  `drift-check` sigue sin diseñar.

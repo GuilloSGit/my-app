@@ -58,6 +58,8 @@ function makeFakePorts(opts: {
   return { ports, state, calls };
 }
 
+const NOW = new Date("2026-09-01T00:00:00.000Z"); // bien antes de la semana 2026/38 (jueves 17/09)
+
 const OK_WOL: WolWeekResult = {
   midweek: { title: "Aprendamos de los gabaonitas", url: "https://wol.jw.org/es/wol/d/r4/lp-s/2026482" },
   weekend: { title: "Otro artículo", url: "https://wol.jw.org/es/wol/d/r4/lp-s/2026999" },
@@ -67,7 +69,7 @@ describe("reconcileWeek", () => {
   it("camino feliz: WOL con contenido -> upsertOccurrence con topic + agenda, sin issues bloqueantes", async () => {
     const { ports, state } = makeFakePorts({ wolByWeek: { "2026/38": OK_WOL } });
     const issues: Issue[] = [];
-    await reconcileWeek("s1", "2026/38", issues, ports);
+    await reconcileWeek("s1", "2026/38", issues, ports, NOW);
 
     expect(issues).toEqual([]);
     const [[, fields]] = Array.from(state.occurrences.entries());
@@ -80,7 +82,7 @@ describe("reconcileWeek", () => {
   it("WOL inalcanzable (null) -> warning transitorio, no toca nada", async () => {
     const { ports, state } = makeFakePorts({ wolByWeek: { "2026/38": null } });
     const issues: Issue[] = [];
-    await reconcileWeek("s1", "2026/38", issues, ports);
+    await reconcileWeek("s1", "2026/38", issues, ports, NOW);
 
     expect(issues).toEqual([
       expect.objectContaining({ severity: "warning", code: "wol_unreachable" }),
@@ -94,7 +96,7 @@ describe("reconcileWeek", () => {
       wolByWeek: { "2026/38": { midweek: null, weekend: OK_WOL.weekend } },
     });
     const issues: Issue[] = [];
-    await reconcileWeek("s1", "2026/38", issues, ports);
+    await reconcileWeek("s1", "2026/38", issues, ports, NOW);
 
     expect(issues).toEqual([
       expect.objectContaining({ severity: "blocked", code: "wol_section_missing" }),
@@ -109,8 +111,8 @@ describe("reconcileWeek", () => {
     const missing = makeFakePorts({ wolByWeek: { "2026/38": { midweek: null, weekend: null } } });
     const issuesA: Issue[] = [];
     const issuesB: Issue[] = [];
-    await reconcileWeek("s1", "2026/38", issuesA, unreachable.ports);
-    await reconcileWeek("s1", "2026/38", issuesB, missing.ports);
+    await reconcileWeek("s1", "2026/38", issuesA, unreachable.ports, NOW);
+    await reconcileWeek("s1", "2026/38", issuesB, missing.ports, NOW);
     expect(issuesA[0].code).not.toBe(issuesB[0].code);
   });
 
@@ -131,13 +133,27 @@ describe("reconcileWeek", () => {
       wolByWeek: { "2026/38": OK_WOL },
     });
     const issues: Issue[] = [];
-    await reconcileWeek("s1", "2026/38", issues, ports);
+    await reconcileWeek("s1", "2026/38", issues, ports, NOW);
 
     expect(issues).toEqual([
       expect.objectContaining({ severity: "info", code: "suppressed", message: "Asamblea de circuito — Salón X" }),
     ]);
     expect(state.cancelled.size).toBe(1);
     expect(calls.getWolCached).toEqual([]); // no hace falta ni consultar WOL
+  });
+
+  it("el día de reunión de esta semana ya pasó -> no hace nada, ni siquiera consulta WOL", async () => {
+    // semana 2026/38: jueves 17/09. "now" cae el sábado siguiente, después
+    // de que la reunión de esa semana ya pasó -- pasa seguido con un cron
+    // cada 2 días, no es solo un caso de la primera corrida.
+    const { ports, state, calls } = makeFakePorts({ wolByWeek: { "2026/38": OK_WOL } });
+    const issues: Issue[] = [];
+    const pastNow = new Date("2026-09-19T12:00:00.000Z");
+    await reconcileWeek("s1", "2026/38", issues, ports, pastNow);
+
+    expect(issues).toEqual([]);
+    expect(state.occurrences.size).toBe(0);
+    expect(calls.getWolCached).toEqual([]);
   });
 });
 
@@ -155,6 +171,29 @@ describe("reconcileMonth", () => {
     expect(failed?.week).toBe("2026/39");
     // las otras semanas del horizonte sí se procesaron
     expect(state.occurrences.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("la semana que contiene `now` ya pasó -> se salta esa semana sola, el resto del mes se procesa igual", async () => {
+    // reproduce el bug real encontrado 2026-09-13: con "now" cayendo
+    // después del jueves de la semana 37 (10/09), esa semana no tiene que
+    // generar una ocurrencia -- Zoom no permite agendar en el pasado.
+    const { ports, state } = makeFakePorts({
+      wolByWeek: {
+        "2026/37": OK_WOL,
+        "2026/38": OK_WOL,
+        "2026/39": OK_WOL,
+        "2026/40": OK_WOL,
+        "2026/41": OK_WOL,
+        "2026/42": OK_WOL,
+      },
+    });
+    const now = new Date("2026-09-13T12:00:00.000Z"); // domingo, fin de la semana 37
+    const issues = await reconcileMonth("s1", ports, { now });
+
+    const dates = Array.from(state.occurrences.keys());
+    expect(dates.some((k) => k.includes("2026-09-10"))).toBe(false); // semana 37, ya pasada
+    expect(dates.some((k) => k.includes("2026-09-17"))).toBe(true); // semana 38, sí se procesa
+    expect(issues).toEqual([]); // saltear una semana pasada no es un problema, no genera issue
   });
 
   it("idempotencia: correr reconcileMonth dos veces seguidas no duplica ni cambia el resultado", async () => {
