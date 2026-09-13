@@ -1245,8 +1245,48 @@ hoy no sabe "listar todo y comparar").
 - Suite verde: `npm run lint`, `npm test` (155 tests, sin cambios — no
   hubo lógica pura nueva), `npm run build`, `deno check` sobre
   `reconcile/index.ts` — sin errores.
-- **Pendiente real para la próxima sesión**: recapturar la sesión de Zoom
-  (`npm run zoom:capture-session`, login interactivo del usuario) y
-  volver a correr `zoom-apply-browser` a mano para confirmar que los 12
-  jobs pendientes se aplican bien. Investigar por qué el step de subir
-  capturas de falla no corre. `drift-check` sigue sin diseñar.
+## 2026-09-13 (misma fecha, continuación) — Sesión de Zoom recapturada, confirmada funcionando
+
+El usuario recapturó la sesión él mismo (`npm run zoom:capture-session`,
+login interactivo — no lo puedo hacer yo, el script existe justamente
+para nunca scriptear el login).
+
+- **La sesión nueva pesa más que la vieja**: 187 KB en crudo, ~244 KB en
+  base64 — no entraba en los 5 secrets de ~20 KB que usaba el workflow
+  hasta ahora (nunca se identificó el motivo del crecimiento; capturas
+  futuras podrían volver a crecer). Se partió en **13 chunks** de 20 KB
+  (verificado byte a byte que la concatenación reconstruye el archivo
+  original antes de subir nada) y se subieron como
+  `ZOOM_SESSION_STATE_B64_1`.._`13` — `gh secret set` no fue bloqueado
+  por el clasificador (a diferencia de los secrets de Supabase). Se
+  actualizó `.github/workflows/zoom-apply-browser.yml` para reconstruir
+  de los 13 (antes hardcodeaba 5).
+- **De paso, se arregló el `if: failure()` que nunca disparaba** en el
+  step de subir capturas de pantalla de fallas (encontrado y anotado sin
+  arreglar en la verificación anterior de hoy): `apply.ts` atrapa el
+  error de cada job del outbox y sigue con el próximo, así que el step
+  "Aplicar jobs pendientes" nunca sale con código de error aunque jobs
+  individuales hayan fallado — cambiado a `if: always()`.
+- **Verificado con 3 corridas reales** (`gh workflow run` a demanda,
+  drenando manualmente los 12 jobs que habían quedado pendientes de la
+  corrida real del cron más temprano hoy): **9 de 12 se aplicaron
+  bien**, con `zoom_meeting_id`/`join_url` reales — confirma que el
+  problema real era la sesión expirada, no el cron/dispatch de hoy.
+- **Dos bugs nuevos encontrados, sin arreglar, distintos entre sí y de la
+  sesión expirada**:
+  1. **Jobs para fechas ya pasadas** (10/09, 12/09 — la primera semana
+     que calcula `reconcile` puede caer parcialmente en el pasado si
+     "ahora" cae después del día de reunión de esa semana): Zoom
+     deshabilita el botón del datepicker para una fecha pasada, no se
+     puede agendar — error `getByRole('button', { name: 'Saturday,...'
+     })`, botón con `aria-disabled="true"`. No es un bug de Playwright,
+     es una consecuencia lógica de intentar crear una reunión en el
+     pasado.
+  2. **Jobs para fechas futuras (15/10, 17/10) con un error de UI
+     distinto**: un ícono de flecha (chevron) no se puede clickear
+     — `element intercepts pointer events`, reintentado ~75 veces sin
+     éxito. Parece timing/selector de Playwright, no relacionado con la
+     sesión.
+  Ambos van a terminar en `status:'failed'` solos tras 5 intentos
+  (backoff exponencial), sin causar ningún daño — quedan como pendiente
+  real para la próxima sesión, junto con `drift-check` (sin diseñar).
