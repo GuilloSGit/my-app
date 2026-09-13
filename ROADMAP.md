@@ -110,12 +110,26 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 
 ## Fase 4 — UI
 
-- [ ] Vista de mes (admin-only): fila por semana, chip de estado, join_url
-- [ ] **Botón "Sincronizar ahora"** (propuesto por el usuario 2026-09-12): dispara `zoom-apply-dispatch` (Edge Function nueva) → GitHub Actions API → corre `zoom-apply-browser` casi al instante, en vez de esperar al backstop de 2 días. Ver "Jobs" en `ZOOM_AUTOMATION.md` para el diseño completo.
-- [ ] Acciones de un clic sobre filas bloqueadas: Marcar Asamblea, Marcar Conmemoración, Crear igual sin contenido, Cancelar esta reunión, Mover a otro día
-- [ ] Form de excepción con los defaults acordados (asamblea suprime ambas siempre; evento especial pre-marca por event_days, editable)
-- [ ] Editor de horario con preview en texto plano antes de guardar (no opcional)
-- [ ] `reconcile_runs.finished_at` siempre visible
+> **Primer entregable cerrado 2026-09-12**: vista de mes de solo lectura en
+> `/dashboard/automatizacion` (admin-only, sin ningún botón de escritura
+> todavía). Los puntos que siguen (sincronizar, acciones de fila,
+> excepciones, editor) necesitan primero un **gate de admin nuevo para las
+> Edge Functions de escritura** — hoy `reconcile`/`zoom-apply` solo aceptan
+> un token interno estático pensado para el cron/servidor, no seguro para
+> exponer en el browser de un admin. Diseño acordado (sin implementar
+> todavía): la Edge Function recibe el JWT que `supabase.functions.invoke`
+> ya adjunta solo desde un cliente autenticado, lo valida con
+> `supabase.auth.getUser(jwt)` y chequea el email contra la misma lista de
+> `ADMIN_EMAILS` que ya usa `lib/admin.ts` (server-side, env var propia en
+> Supabase — no es secreta, ya es pública vía `NEXT_PUBLIC_ADMIN_EMAIL`).
+
+- [x] Vista de mes (admin-only): `/dashboard/automatizacion`, agrupada por schedule con chip de estado y `join_url` (`lib/automation.ts`, `app/dashboard/automatizacion/page.tsx`)
+- [x] `reconcile_runs.finished_at` siempre visible — mismo entregable de arriba
+- [x] Horario real cargado en `meeting_schedules` (jueves 19:00 / sábado 18:00, 2hs cada una, `America/Argentina/Buenos_Aires`) — antes vacía, stopgap hasta que exista el editor
+- [ ] **Botón "Sincronizar ahora"** (propuesto por el usuario 2026-09-12): dispara `zoom-apply-dispatch` (Edge Function nueva) → GitHub Actions API → corre `zoom-apply-browser` casi al instante, en vez de esperar al backstop de 2 días. Necesita el gate de admin nuevo (nota arriba). Ver "Jobs" en `ZOOM_AUTOMATION.md` para el diseño completo.
+- [ ] Acciones de un clic sobre filas bloqueadas: Marcar Asamblea, Marcar Conmemoración, Crear igual sin contenido, Cancelar esta reunión, Mover a otro día — necesita el gate de admin nuevo
+- [ ] Form de excepción con los defaults acordados (asamblea suprime ambas siempre; evento especial pre-marca por event_days, editable) — necesita el gate de admin nuevo
+- [ ] Editor de horario con preview en texto plano antes de guardar (no opcional) — necesita el gate de admin nuevo; reemplaza la carga manual de `meeting_schedules` de arriba
 
 ## Fase 5 — Cron real + drift-check + retiro del flujo manual
 

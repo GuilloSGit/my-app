@@ -685,3 +685,81 @@ no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
   `deno check` limpio sobre todos los módulos de `_shared/reconciler` y
   `_shared/zoom` + `reconcile/index.ts` + `zoom-apply/index.ts`, `npm run
   lint` limpio, `npm run test:run` en 119/119, `npm run build` limpio.
+
+## 2026-09-12 (misma fecha, nueva sesión) — Fase 4: primer entregable, vista de mes de solo lectura
+
+- **Se usó `/EnterPlanMode` antes de codear**, dado el tamaño de Fase 4 (6
+  partes + una pieza de infraestructura nueva). Se acordó con el usuario
+  arrancar por la parte de menor riesgo: una vista de solo lectura, sin
+  ningún botón de escritura, en una ruta nueva separada del `/dashboard`
+  actual (que sigue siendo el flujo manual autoritativo). Plan completo en
+  `~/.claude/plans/iridescent-bubbling-pinwheel.md`.
+- **Nuevo `lib/automation.ts`**: `getActiveSchedules`, `getUpcomingOccurrences`
+  (35 días, con embed de `meeting_schedules(kind)` vía el FK que ya existe
+  — PostgREST puede devolver el embed como objeto o como array de 1 según
+  versión, normalizado en `rowToOccurrence`), `getLatestReconcileRuns`
+  (última fila por `schedule_id`, filtrada en JS sobre las últimas 20 —
+  volumen bajísimo, no justifica una función SQL de agregación). Mismo
+  patrón que `lib/meetings.ts` (funciones async sobre el cliente Supabase
+  del browser, sin server actions — el sitio es export estático).
+- **Nueva ruta `/dashboard/automatizacion`** (`app/dashboard/automatizacion/page.tsx`):
+  admin-only (mismo `isAdmin` de `lib/admin.ts`, redirige a `/dashboard`
+  si no lo es), agrupa ocurrencias por schedule con chip de estado
+  (`components/occurrence-status-badge.tsx`), motivo cuando está
+  `blocked`, `join_url` con el `CopyButton` ya existente, y
+  "Última corrida" de `reconcile_runs` siempre visible (punto 6 del
+  checklist de Fase 4, cerrado de paso por ser de solo lectura). Link
+  nuevo desde el panel de admin de `/dashboard` para poder llegar a la
+  pantalla (si no, quedaba sin ninguna forma de navegar ahí).
+- **Tests nuevos**: `__tests__/lib/automation.test.ts` (mapeo de filas,
+  embed como objeto/array/ausente, dedupe de reconcile_runs por schedule)
+  y `__tests__/components/automatizacion-page.test.tsx` (admin ve la
+  tabla, no-admin redirigido, estado vacío, ocurrencia bloqueada muestra
+  el motivo) — mismo patrón de mock que ya usa
+  `__tests__/lib/meetings.test.ts`/`dashboard-meetings.test.tsx`.
+  132/132 tests verdes, `npx tsc --noEmit` limpio, `npm run lint` limpio,
+  `npm run build` genera la ruta nueva (`/dashboard/automatizacion`,
+  5.71 kB) sin errores.
+- **Horario real cargado**: `meeting_schedules` estaba vacía en
+  producción (nunca se cargó nada real, solo throwaways de fases
+  anteriores, todos limpiados) — sin esto la vista de mes solo podía
+  mostrar el estado vacío. El usuario confirmó jueves 19:00 (entresemana)
+  y sábado 18:00 (fin de semana), 2hs cada una. Primero se cargó con
+  timezone `America/Argentina/San_Juan` (el default histórico del schema
+  y de todos los fixtures/ejemplos de fases anteriores), pero el usuario
+  pidió cambiarlo a `America/Argentina/Buenos_Aires` — se verificó con
+  `Intl.DateTimeFormat` que ambos dan el mismo offset real (GMT-3, sin
+  DST en ninguno de los dos) antes de aplicar el cambio, así que no
+  mueve ningún horario. Como la primera migración ya se había aplicado
+  (`supabase db push`), el fix se hizo con una migración `update`
+  aparte en vez de editar la ya aplicada (los migrations tracking de
+  Supabase no re-corren un archivo ya registrado aunque se le cambie el
+  contenido). **Es un stopgap explícito**: el editor de horario (Fase 4,
+  último punto) va a reemplazar esta carga manual por una UI editable,
+  para cuando el horario cambie en el futuro no haga falta tocar la base
+  de nuevo — el usuario lo pidió así explícitamente ("estaria bueno
+  ponerlo en la Interfaz... la necesitamos cambiar cuando cambie ese
+  horario").
+- **Intento de verificar con ocurrencias reales, bloqueado por el modo de
+  permisos**: con los schedules ya reales, `meeting_occurrences` seguía
+  vacía porque nunca corrió `reconcile` para ellos (sin cron todavía,
+  Fase 5). Para invocarlo a mano hacía falta rotar
+  `RECONCILE_INTERNAL_TOKEN` (el valor real no está disponible en esta
+  sesión — `supabase secrets list` solo muestra un hash, nunca el
+  secreto — mismo patrón ya usado en Fase 2 para rotar tokens sin pedirle
+  nada al usuario). El clasificador de modo automático **bloqueó la
+  escritura al secret store** (`supabase secrets set`) antes de
+  ejecutarse — no se intentó ningún rodeo, se paró ahí y se le devolvió
+  la decisión al usuario. **Pendiente real**: la vista de mes hoy muestra
+  los 2 schedules reales pero sin ocurrencias (estado "Sin ocurrencias
+  calculadas") hasta que `reconcile` corra al menos una vez para cada
+  uno, a mano o esperando a Fase 5.
+- **Diseño acordado para el gate de admin de la próxima iteración** (no
+  implementado todavía, documentado en `ROADMAP.md`): las Edge Functions
+  de escritura que se llamen desde el browser de un admin (sincronizar
+  ahora, acciones de fila, excepciones, editor de horario) van a validar
+  el JWT que `supabase.functions.invoke` adjunta solo desde un cliente ya
+  autenticado (`supabase.auth.getUser(jwt)`) y chequear el email contra
+  la misma lista de `ADMIN_EMAILS` que ya usa `lib/admin.ts` client-side
+  — distinto del token estático que usan `reconcile`/`zoom-apply` hoy
+  (pensado para cron/servidor, inseguro para exponer en el browser).
