@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { corsHeaders } from "./cors.ts";
 
 // Duplica a propósito el chequeo de lib/admin.ts (client-side, bundle de
 // Next): no hay forma de compartir código entre ese bundle y estas Edge
@@ -16,14 +17,14 @@ export function isAdminEmail(
 function unauthorized(): Response {
   return new Response(JSON.stringify({ error: "unauthorized" }), {
     status: 401,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 }
 
 function forbidden(): Response {
   return new Response(JSON.stringify({ error: "forbidden" }), {
     status: 403,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 }
 
