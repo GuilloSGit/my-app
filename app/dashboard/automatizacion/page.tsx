@@ -42,7 +42,7 @@ function formatLastRun(run: ReconcileRunSummary | undefined): string {
 }
 
 function AutomatizacionContent() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
@@ -53,11 +53,15 @@ function AutomatizacionContent() {
 
   const userIsAdmin = isAdmin(user);
 
+  // Este componente tiene su propio useAuth() (estado independiente del que
+  // ya resolvió AuthGuard más arriba), así que arranca de nuevo en user=null
+  // mientras carga su sesión — sin el guard de authLoading acá, isAdmin(null)
+  // dispara el redirect a /dashboard antes de que la sesión real cargue.
   useEffect(() => {
-    if (!userIsAdmin) {
+    if (!authLoading && !userIsAdmin) {
       router.push("/dashboard");
     }
-  }, [userIsAdmin, router]);
+  }, [authLoading, userIsAdmin, router]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -87,6 +91,14 @@ function AutomatizacionContent() {
     );
     setSyncing(false);
   }, []);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-slate-500 dark:text-zinc-500">Cargando...</div>
+      </div>
+    );
+  }
 
   if (!userIsAdmin) return null;
 

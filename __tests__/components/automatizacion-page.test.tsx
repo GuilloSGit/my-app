@@ -34,6 +34,12 @@ function mockUser(email: string) {
   }));
 }
 
+function mockAuthLoading() {
+  vi.doMock("@/lib/auth", () => ({
+    useAuth: () => ({ user: null, loading: true, logout: vi.fn() }),
+  }));
+}
+
 const schedule: Schedule = {
   id: "s1",
   kind: "midweek",
@@ -87,6 +93,16 @@ describe("Vista de mes — control de acceso", () => {
     await renderPage("miembro@test.com");
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
+    expect(mockGetActiveSchedules).not.toHaveBeenCalled();
+  });
+
+  it("mientras la sesión todavía está cargando, no redirige (ver bug 2026-09-13)", async () => {
+    mockAuthLoading();
+    const { default: FreshPage } = await import("@/app/dashboard/automatizacion/page");
+    render(<FreshPage />);
+
+    expect(await screen.findByText("Cargando...")).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
     expect(mockGetActiveSchedules).not.toHaveBeenCalled();
   });
 });
