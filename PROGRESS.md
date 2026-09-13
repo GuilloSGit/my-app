@@ -839,13 +839,44 @@ no implementado (es trabajo de Fase 4/5, la UI no existe todavía).
   "Production Deploy", mismo tipo de bloqueo — no el mismo caso puntual —
   que ya bloqueó `supabase secrets set` en una sesión anterior):
   `supabase functions deploy zoom-apply-dispatch --use-api` no se
-  ejecutó. **Pendiente real, en este orden**:
-  1. El usuario corre el deploy de la función.
-  2. El usuario carga los dos secrets nuevos (`ADMIN_EMAILS`,
-     `GITHUB_PAT`) — ver comandos en el plan de esta sesión.
-  3. Probar el botón "Sincronizar ahora" en `/dashboard/automatizacion`
-     con un admin real y confirmar con `gh run list
-     --workflow=zoom-apply-browser.yml` que disparó una corrida.
+  ejecutó desde acá — lo corrió el usuario en su terminal.
 - Suite verde: `npm run test:run` (141 tests), `npx tsc --noEmit`, `npm run
-  lint`, y `deno check` sobre los tres archivos nuevos de
-  `supabase/functions/` — los cuatro sin errores.
+  lint`, y `deno check` sobre los archivos nuevos de `supabase/functions/`
+  — los cuatro sin errores.
+- **El usuario pegó un GitHub PAT real en texto plano en el chat** al
+  cargar `GITHUB_PAT` (después de habérsele pedido explícitamente que
+  corriera el comando él mismo sin pasar el valor por acá) — señalado en
+  el momento, recomendada la rotación. Ver [[feedback-flag-shared-credentials]]
+  (memoria nueva de esta sesión, mismo patrón que ya había pasado con una
+  contraseña de Zoom en 2026-09-12).
+- **Deploy + carga de secrets completados por el usuario.** Primera
+  prueba real del botón "Sincronizar ahora" (local, admin real) reveló
+  dos bugs nuevos, ambos arreglados y verificados en la misma sesión:
+  1. **Redirect prematuro en `/dashboard/automatizacion`**: el componente
+     tiene su propio `useAuth()` (estado independiente del que ya
+     resolvió `AuthGuard` más arriba) — arranca en `user=null` hasta que
+     resuelve su propia sesión, y el `useEffect` de control de acceso no
+     esperaba ese `loading`, así que redirigía a `/dashboard` con
+     `isAdmin(null)=false` antes de que la sesión real cargara. Bug
+     preexistente desde el primer entregable de Fase 4 (2026-09-12), no
+     de esta sesión — nunca se había notado porque el test de esa página
+     mockea `useAuth` con `loading: false` fijo, sin cubrir el estado de
+     carga real. Fix: esperar `authLoading` antes de decidir, mismo
+     patrón que `AuthGuard`; se agregó un test que cubre justo este caso.
+  2. **CORS faltante en `zoom-apply-dispatch`**: primera Edge Function de
+     este proyecto invocada directo desde el browser
+     (`supabase.functions.invoke`) — `reconcile`/`zoom-apply` nunca lo
+     necesitaron por ser server-to-server. Sin headers CORS ni manejo del
+     preflight `OPTIONS`, el browser bloqueaba el POST real
+     ("Failed to send a request to the Edge Function", sin llegar a
+     ejecutar nada del lado servidor). Fix:
+     `supabase/functions/_shared/cors.ts` (`corsHeaders`,
+     `handleCorsPreflight`), aplicado en `admin-auth.ts` y en
+     `zoom-apply-dispatch/index.ts`. **Reusar este módulo en cualquier
+     próxima Edge Function que use `requireAdmin`** — todas se invocan
+     igual, desde el browser de un admin.
+  - Ambos fixes redeployados por el usuario y **verificados de punta a
+    punta contra la cuenta real**: click en el botón → `{"ok":true}` →
+    corrida de GitHub Actions disparada (run `34770345918`) → terminó en
+    verde (52s) sin capturas de falla. Botón "Sincronizar ahora" cerrado,
+    Fase 4 sin pendientes de este entregable.

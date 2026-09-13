@@ -546,11 +546,13 @@ job reintenta.
 > un cliente autenticado (`supabase.auth.getUser(jwt)`) y chequear el email
 > contra la misma lista de `ADMIN_EMAILS` que ya usa `lib/admin.ts`
 > client-side — del lado server como una env var más de Supabase (no
-> secreta, ya es pública vía `NEXT_PUBLIC_ADMIN_EMAIL`). **Implementado
-> 2026-09-13** en `supabase/functions/_shared/admin-auth.ts`
-> (`requireAdmin`) — primer consumidor: `zoom-apply-dispatch` (botón
-> "Sincronizar ahora", ver "Jobs" más abajo). Pendiente de deploy y de
-> cargar el secret `ADMIN_EMAILS` (ver PROGRESS.md).
+> secreta, ya es pública vía `NEXT_PUBLIC_ADMIN_EMAIL`). **Implementado y
+> verificado de punta a punta 2026-09-13** en
+> `supabase/functions/_shared/admin-auth.ts` (`requireAdmin`) — primer
+> consumidor: `zoom-apply-dispatch` (botón "Sincronizar ahora", ver
+> "Jobs" más abajo). Necesita también `supabase/functions/_shared/cors.ts`
+> en cualquier función nueva que lo use (ver PROGRESS.md) — es la primera
+> vez que una Edge Function de este proyecto se invoca desde el browser.
 
 - **Vista de mes — implementada, de solo lectura**: `/dashboard/automatizacion`
   (`app/dashboard/automatizacion/page.tsx`, admin-only vía `isAdmin()`,
@@ -641,8 +643,8 @@ aplica en segundos, el backstop de baja frecuencia cubre el resto" — solo
 que el backstop ahora es cada 2 días, no cada 2 minutos, porque correrlo
 más seguido ya no es gratis):
 
-1. **Botón "Sincronizar ahora" en el admin UI (Fase 4) — implementado
-   2026-09-13, pendiente de deploy**: llama a una Edge Function nueva y
+1. **Botón "Sincronizar ahora" en el admin UI (Fase 4) — implementado y
+   verificado de punta a punta 2026-09-13**: llama a una Edge Function nueva y
    chica (`zoom-apply-dispatch`, gate `requireAdmin`) que dispara el
    workflow de GitHub Actions vía la API REST de GitHub
    (`POST /repos/{owner}/{repo}/actions/workflows/zoom-apply-browser.yml/dispatches`,
