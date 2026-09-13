@@ -136,7 +136,7 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
 
 - [ ] Activar cron de `reconcile` cada 2 días (no diario — revisado 2026-09-12, ver `ZOOM_AUTOMATION.md`), `wol-enrich` diario, `drift-check` semanal — los tres en Supabase (pg_cron)
 - [ ] **`zoom-apply-browser` sin cron propio de GitHub Actions** (correrlo seguido es gasto real de minutos de CI para un runner con Chromium) — se dispara por el botón de Fase 4 y por `reconcile` al terminar (fire-and-forget vía `zoom-apply-dispatch`), nunca por schedule automático
-- [ ] `zoom-apply-dispatch`: Edge Function que llama a la GitHub Actions API con un PAT (`GITHUB_PAT`, scope `workflow`) guardado como secret de Supabase — el usuario lo genera y carga él mismo, nunca por el chat
+- [x] `zoom-apply-dispatch`: Edge Function que llama a la GitHub Actions API con un PAT (`GITHUB_PAT`, scope `workflow`) guardado como secret de Supabase — el usuario lo genera y carga él mismo, nunca por el chat. **Implementado y verificado en Fase 4** (2026-09-13, ver arriba); acá falta solo que `reconcile` la dispare fire-and-forget al terminar, que es lo que queda pendiente de este ítem.
 - [ ] `drift-check` reporta divergencias, nunca corrige solo
 - [ ] Retirar `zoom-import-dialog.tsx`/`lib/zoom-parser.ts` del flujo principal (fallback documentado un ciclo más antes de borrar)
 - [ ] Actualizar README/ARCHITECTURE/AGENTS como sistema autoritativo
