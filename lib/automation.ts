@@ -232,3 +232,30 @@ export async function writeSchedule(input: ScheduleWriteInput): Promise<Schedule
   const result = data as { ops: ScheduleWriteOp[]; committed: boolean; errors?: string[] };
   return { ok: true, ops: result.ops, committed: result.committed, errors: result.errors ?? [] };
 }
+
+// Acciones de un clic sobre una fila de la vista de mes (occurrence-action):
+// Marcar Asamblea, Marcar Conmemoración, Crear igual sin contenido,
+// Cancelar esta reunión, Mover a otro día. Sin preview — son acciones
+// puntuales de una sola fila, el form del diálogo es la única salvaguarda.
+export type OccurrenceActionKind =
+  | "cancel"
+  | "move"
+  | "mark_assembly"
+  | "mark_memorial"
+  | "create_without_content";
+
+export interface OccurrenceActionInput {
+  occurrenceId: string;
+  action: OccurrenceActionKind;
+  reason?: string;
+  date?: string; // "yyyy-MM-dd", requerido para move/mark_memorial
+  time?: string; // "HH:mm", requerido para move/mark_memorial
+  label?: string;
+  venue?: string;
+}
+
+export async function occurrenceAction(input: OccurrenceActionInput): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.functions.invoke("occurrence-action", { body: input });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

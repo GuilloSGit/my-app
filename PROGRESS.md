@@ -984,3 +984,72 @@ quedan para más adelante, elegido así por el usuario). Se usó
     `RECONCILE_INTERNAL_TOKEN`, tarea aparte de esta).
 - Editor de horario (Fase 4) **cerrado**: implementado, deployado y
   verificado.
+
+## 2026-09-13 (misma fecha, nueva sesión) — Acciones de fila (`occurrence-action`)
+
+Siguiente punto de Fase 4: Marcar Asamblea, Marcar Conmemoración, Crear
+igual sin contenido, Cancelar esta reunión, Mover a otro día. Se usó
+`/EnterPlanMode` — plan en `~/.claude/plans/eager-sniffing-giraffe.md`.
+
+- **Dos decisiones de alcance resueltas con el usuario antes de codear**:
+  1. Marcar Conmemoración necesita su propio selector de fecha/hora (cae
+     en una fecha del calendario lunar, no el día regular de reunión) y sí
+     crea un link de Zoom real, con topic fijo `"Conmemoración"`.
+  2. **Se detectó en el momento** que restringir "Mover a otro día" a
+     filas `blocked` (como decía el checklist original) lo dejaba
+     inutilizable para el caso que lo motivó: una visita del
+     Superintendente de Circuito no genera una fila bloqueada (WOL sigue
+     teniendo contenido normal esa semana, el reconciliador la trataría
+     como una semana cualquiera). Se lo señalé al usuario en el momento en
+     vez de seguir con el alcance que él mismo había elegido antes sin
+     saber esto — decisión final: el botón queda disponible en
+     **cualquier fila** (`blocked`/`pending`/`synced`), no solo
+     bloqueadas.
+- **Hallazgo de diseño, el más importante de esta pieza**: `reconcileWeek`
+  reevalúa cada semana desde cero en cada corrida. Si una acción solo
+  cancela una fila (`status='cancelled'`) sin una excepción real en
+  `schedule_exceptions`, la guarda de `reconciler_upsert_occurrence`
+  (`where status is distinct from 'cancelled'`) la **revive** apenas WOL
+  siga teniendo contenido esa fecha. Por eso "Cancelar esta reunión" y
+  "Mover a otro día" escriben una excepción real (`kind:'no_meeting'`/
+  `'special_event'`), no solo tocan `meeting_occurrences`. "Marcar
+  Conmemoración" no tiene este problema (la fila de origen queda
+  `blocked`, no `cancelled` — `markBlocked` es idempotente y no la
+  revive), así que **no toca la fila bloqueada de origen**, solo agrega
+  la ocurrencia manual nueva. "Crear igual sin contenido" sí reusa el
+  slot bloqueado, así que en vez de una excepción usa `pinned=true` (la
+  válvula ya documentada para esto) — sin el pin, la siguiente corrida
+  vuelve a taparlo con el badge "Bloqueada" aunque el link de Zoom ya esté
+  creado.
+- **Sin migración nueva**: las 4 acciones reusan `schedule_write_cancel_occurrence`
+  (Fase 4, editor de horario) y `reconciler_upsert_occurrence` (Fase 1/2)
+  para las escrituras reales, más un `insert` directo a
+  `schedule_exceptions` y un `update({pinned:true})` — ninguno necesita
+  una función SQL nueva.
+- **Lógica pura nueva** en
+  `supabase/functions/_shared/reconciler/occurrence-actions.ts`:
+  `siblingWeekDate` (la fecha del otro schedule en la misma semana ISO,
+  para que "Marcar Asamblea" suprima siempre ambas reuniones) y
+  `defaultAssemblyLabel` (texto default "Asamblea (semana lunes al
+  domingo)" cuando no se carga lugar), ambas reusando `occurrenceDateForWeek`/
+  `isoWeekKeyForInstant` ya escritas y testeadas en Fase 1 sin consumidor
+  real hasta ahora. 5 tests nuevos en `__tests__/reconciler/occurrence-actions.test.ts`,
+  incluido el borde de semana ISO 53 (mismo caso ya cubierto en
+  `expand.test.ts`).
+- **Edge Function nueva** `supabase/functions/occurrence-action/index.ts`
+  (mismo esqueleto `requireAdmin`+CORS que `schedule-write`), sin
+  preview/dry-run — son acciones puntuales de una fila, el form del
+  diálogo (`components/occurrence-action-dialog.tsx`, nuevo) es la única
+  salvaguarda.
+- Suite verde: `npm run lint`, `npm test` (152 tests, +5 nuevos), `npm run
+  build`, `deno check` sobre `occurrence-action` y de paso sobre
+  `schedule-write`/`reconcile`/`zoom-apply-dispatch` (nada roto) — los
+  cuatro sin errores.
+- **Deploy bloqueado por el clasificador de modo automático** (categoría
+  "Production Deploy") — a diferencia del deploy de `schedule-write`, que
+  sí había pasado en esta misma sesión un rato antes. El comportamiento
+  del clasificador no fue consistente entre ambos deploys. **El usuario
+  corrió el deploy él mismo** (`supabase functions deploy occurrence-action
+  --use-api`), verde. **Pendiente**: prueba manual con datos sintéticos
+  (mismo patrón que el editor de horario), con autorización explícita del
+  usuario.

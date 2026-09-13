@@ -571,13 +571,30 @@ job reintenta.
   explícito**, pedido así por el usuario: el editor de horario (más abajo)
   va a reemplazar esta carga manual por una UI editable para cuando el
   horario cambie.
-- **Acciones de un clic sobre filas bloqueadas** (pendiente, necesita el gate): Marcar Asamblea (abre
-  form de excepción), Marcar Conmemoración (`origin='manual'`), Crear igual
-  sin contenido, Cancelar esta reunión, **Mover a otro día** (caso "Visita
-  del Superintendente de Circuito": no es una cancelación, es un
-  corrimiento — se resuelve con una excepción `suppresses=['midweek']` +
-  una ocurrencia `origin='manual'` en la fecha nueva; la UI hace ambos
-  pasos atrás de escena).
+- **Acciones de un clic — implementadas 2026-09-13** (falta deploy real, bloqueado por el
+  clasificador de modo automático, + verificación contra la cuenta):
+  `supabase/functions/occurrence-action/index.ts` +
+  `components/occurrence-action-dialog.tsx`. Marcar Asamblea, Marcar
+  Conmemoración (`origin='manual'`, con su propio selector de fecha/hora,
+  crea Zoom real), Crear igual sin contenido y Cancelar esta reunión
+  (las 4, solo en filas `blocked`); **Mover a otro día** (caso "Visita del
+  Superintendente de Circuito": excepción `kind='special_event'` +
+  `schedule_write_cancel_occurrence` sobre la fila original +
+  `reconciler_upsert_occurrence` en la fecha nueva) quedó disponible en
+  **cualquier fila no cancelada**, no solo bloqueadas — se detectó al
+  planificar que el caso que lo motivó nunca produce una fila bloqueada
+  (WOL sigue con contenido normal esa semana), así que restringirlo a
+  `blocked` lo hubiera dejado inutilizable para su propio caso de uso.
+  Sin preview/dry-run (a diferencia del editor de horario): son acciones
+  de una sola fila, el form + "Confirmar" del diálogo es la salvaguarda.
+  **Gotcha de diseño reusable**: cualquier acción que solo cancele una
+  fila sin escribir una excepción real en `schedule_exceptions` queda
+  revivida por `reconcile` en la corrida siguiente (la guarda de
+  `reconciler_upsert_occurrence` dispara un `update` apenas ve
+  `status='cancelled'` en una fecha con contenido WOL) — por eso
+  "Cancelar"/"Mover" sí escriben la excepción y "Crear igual sin
+  contenido" usa `pinned=true` en vez de una excepción (reusa el slot
+  bloqueado, `markBlocked` sí es idempotente sin necesitar excepción).
 - **Form de excepción** (pendiente, necesita el gate) — defaults ya acordados con el usuario (no
   volver a preguntar):
   - **Asamblea** (cualquier tipo — circuito o regional): suprime **siempre

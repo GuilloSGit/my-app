@@ -8,6 +8,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { OccurrenceStatusBadge } from "@/components/occurrence-status-badge";
 import { CopyButton } from "@/components/copy-button";
 import { ScheduleEditorDialog } from "@/components/schedule-editor-dialog";
+import { OccurrenceActionDialog } from "@/components/occurrence-action-dialog";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
 import { formatMeetingDate } from "@/lib/meetings";
@@ -22,7 +23,7 @@ import {
   Occurrence,
   ReconcileRunSummary,
 } from "@/lib/automation";
-import { CalendarClock, RefreshCw, Send, Pencil } from "lucide-react";
+import { CalendarClock, RefreshCw, Send, Pencil, ListChecks } from "lucide-react";
 
 function formatScheduleSummary(schedule: Schedule): string {
   const time = schedule.localTime.slice(0, 5); // "HH:mm:ss" -> "HH:mm"
@@ -51,6 +52,7 @@ function AutomatizacionContent() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [actionOccurrence, setActionOccurrence] = useState<Occurrence | null>(null);
 
   const userIsAdmin = isAdmin(user);
 
@@ -230,6 +232,15 @@ function AutomatizacionContent() {
                             <div className="flex items-center gap-3">
                               <OccurrenceStatusBadge status={occurrence.status} />
                               {occurrence.joinUrl && <CopyButton text={occurrence.joinUrl} label="Link" />}
+                              {occurrence.status !== "cancelled" && (
+                                <button
+                                  onClick={() => setActionOccurrence(occurrence)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                                >
+                                  <ListChecks className="w-3.5 h-3.5" />
+                                  Acciones
+                                </button>
+                              )}
                             </div>
                           </div>
                         </li>
@@ -249,6 +260,17 @@ function AutomatizacionContent() {
           onClose={() => setEditingSchedule(null)}
           onSaved={() => {
             setEditingSchedule(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {actionOccurrence && (
+        <OccurrenceActionDialog
+          occurrence={actionOccurrence}
+          onClose={() => setActionOccurrence(null)}
+          onDone={() => {
+            setActionOccurrence(null);
             refresh();
           }}
         />
