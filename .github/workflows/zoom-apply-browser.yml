@@ -8,9 +8,15 @@ name: Zoom apply (navegador)
 # ZOOM_SESSION_STATE_B64_1/_2 — sin ellos, este workflow falla rápido y no
 # hace nada destructivo.
 #
-# La sesión en base64 no entra en un solo secret de GitHub (incluso partida
-# en dos de ~50 KB dio "too large" — el límite real resultó más chico de
-# lo documentado) — se partió en 5 pedazos de ~20 KB y se reconstruye acá.
+# La sesión en base64 no entra en un solo secret de GitHub (un secret de
+# ~50 KB dio "too large" — el límite real resultó más chico de lo
+# documentado) — se parte en pedazos de ~20 KB y se reconstruye acá. La
+# cantidad de pedazos varía según cuánto pese la sesión capturada (creció
+# de 5 a 13 al recapturarla el 2026-09-13, sin motivo identificado — Zoom
+# u otro tercero debe estar seteando más localStorage/cookies que antes
+# bajo *.zoom.us) — si vuelve a crecer, hay que agregar más
+# `ZOOM_SESSION_STATE_B64_N` acá Y como secrets nuevos, no alcanza con
+# recapturar sin también tocar este workflow.
 #
 # Sin cron automático a propósito (2026-09-12): activarlo ahora sería
 # correr un runner completo con Playwright+Chromium cada 10 minutos contra
@@ -53,12 +59,20 @@ jobs:
       - name: Restaurar sesión de Zoom
         run: |
           mkdir -p zoom-automation/.session
-          printf '%s%s%s%s%s' \
+          printf '%s%s%s%s%s%s%s%s%s%s%s%s%s' \
             "${{ secrets.ZOOM_SESSION_STATE_B64_1 }}" \
             "${{ secrets.ZOOM_SESSION_STATE_B64_2 }}" \
             "${{ secrets.ZOOM_SESSION_STATE_B64_3 }}" \
             "${{ secrets.ZOOM_SESSION_STATE_B64_4 }}" \
             "${{ secrets.ZOOM_SESSION_STATE_B64_5 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_6 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_7 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_8 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_9 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_10 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_11 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_12 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_13 }}" \
             | base64 -d > zoom-automation/.session/zoom-storage-state.json
 
       - name: Aplicar jobs pendientes contra Zoom
@@ -68,7 +82,12 @@ jobs:
         run: npm run zoom:apply
 
       - name: Subir capturas de pantalla de fallas (si hubo)
-        if: failure()
+        # `if: failure()` nunca disparaba: apply.ts atrapa el error de cada
+        # job del outbox y sigue con el siguiente, así que el step de arriba
+        # nunca sale con código de error aunque jobs individuales hayan
+        # fallado y dejado capturas — gotcha encontrado 2026-09-13.
+        # `if-no-files-found: ignore` de abajo ya cubre el caso sin fallas.
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: zoom-apply-failures
