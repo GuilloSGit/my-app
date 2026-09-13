@@ -588,8 +588,8 @@ job reintenta.
   - **Acontecimiento especial** (genérico): se pre-marca como sugerencia
     editable el checkbox de la reunión cuyo día caiga en `event_days`, pero
     queda abierto a edición manual — no es una regla fija.
-- **Editor de horario con preview — implementado 2026-09-13** (falta deploy real +
-  verificación contra la cuenta): Edge Function `schedule-write`
+- **Editor de horario con preview — implementado, deployado y verificado
+  de punta a punta contra el proyecto real, 2026-09-13**: Edge Function `schedule-write`
   (`supabase/functions/schedule-write/index.ts`) + diálogo
   `components/schedule-editor-dialog.tsx`. El preview usa `expand()` +
   `diffOccurrences()` (emparejamiento posicional, no `reconcile` en modo

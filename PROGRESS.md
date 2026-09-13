@@ -944,10 +944,43 @@ quedan para más adelante, elegido así por el usuario). Se usó
 - Suite verde: `npm run lint`, `npm test` (147 tests, +6 nuevos), `npm run
   build` (incluye `tsc`), y `deno check` sobre los dos archivos nuevos de
   `supabase/functions/` — los cuatro sin errores.
-- **Pendiente**: deploy real (`supabase db push` para la migración +
-  `supabase functions deploy schedule-write --use-api`) y verificación
-  manual contra la cuenta real — el usuario corre el deploy/push él mismo
-  (mismo patrón que el resto de Fase 4, bloqueado para el asistente por el
-  clasificador de modo automático), y la prueba manual necesita su
-  autorización explícita para tocar la cuenta real de Zoom, igual que en
-  Fase 2-bis/Fase 3.
+- **Deploy real hecho en esta misma sesión** (autorizado explícitamente
+  por el usuario, incluida la prueba manual): `supabase db push`
+  (migración aplicada) + `supabase functions deploy schedule-write
+  --use-api` — a diferencia de sesiones anteriores, esta vez el
+  clasificador de modo automático no bloqueó ninguno de los dos comandos.
+- **Verificado de punta a punta contra el proyecto real**, con un login
+  admin generado server-side (`supabase.auth.admin.generateLink`, service
+  role, sin mandar el mail — evita depender del inbox del usuario) sobre
+  `npm run dev` local apuntando al Supabase real:
+  - **Preview contra datos reales** (`commit:false`, cero escrituras):
+    con `meeting_occurrences` todavía vacía en producción (`reconcile`
+    real nunca corrió — pendiente ya anotado antes), el editor mostró
+    correctamente 4 "Crear" para los próximos jueves. Confirma gate de
+    admin + lectura real + `expand()` funcionando en producción.
+  - **Caso crítico (preservar `agenda` en un `update`)**: como no hay
+    ocurrencias reales para probar un `update` real, se insertaron 4 filas
+    sintéticas vía `service_role` (3 idénticas a lo que `expand()` iba a
+    generar, para confirmar que el dirty-check no las toca; 1 con
+    `duration_minutes` distinto + una `agenda`/`zoom_meeting_id`/`join_url`
+    falsos simulando una reunión ya sincronizada con contenido real de
+    WOL). El editor mostró exactamente **1 "Actualizar (duración)"** y,
+    al confirmar, `schedule_write_update_occurrence` actualizó
+    `duration_minutes` a 120 preservando `agenda`/`join_url`/`passcode`/
+    `zoom_meeting_id` intactos, y encoló en `zoom_outbox` un job
+    `action:"update"` (no `create`, detectó el `zoom_meeting_id`
+    existente) con `payload.agenda` igual al texto real preservado — el
+    hallazgo de diseño de arriba, confirmado funcionando contra la base
+    real. Las 3 filas idénticas no generaron ningún job. `meeting_schedules`
+    no se tocó (mismos valores, dirty-check también ahí).
+  - Limpieza inmediata después: se borraron las 4 filas sintéticas y su
+    job de outbox — `meeting_occurrences`/`zoom_outbox` quedaron en 0,
+    igual que antes de la prueba. **No se clickeó "Sincronizar ahora" en
+    ningún momento** — la cuenta real de Zoom no se tocó en esta
+    verificación.
+  - **Pendiente real, ya anotado antes y sin cambios**: `meeting_occurrences`
+    sigue vacía en producción — falta correr `reconcile` de verdad al
+    menos una vez (bloqueado por el clasificador al rotar
+    `RECONCILE_INTERNAL_TOKEN`, tarea aparte de esta).
+- Editor de horario (Fase 4) **cerrado**: implementado, deployado y
+  verificado.
