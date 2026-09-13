@@ -139,9 +139,16 @@ export class ZoomBrowserClient {
         await dayButton.click();
         return;
       }
-      // Flecha "mes siguiente" del datepicker — confirmado en la grabación
-      // (`.zoom-icon.zoom-inline-chevron-icon`), sin accessible name propio.
-      await page.locator(".zoom-icon.zoom-inline-chevron-icon > svg > path").first().click();
+      // Flecha "mes siguiente" del datepicker. El selector anterior
+      // (`.zoom-icon.zoom-inline-chevron-icon > svg > path`, de la
+      // grabación de codegen) resultó ser ambiguo contra el DOM real: esa
+      // misma clase la comparten los chevrons de Duration/Time Zone/etc.,
+      // y `.first()` agarraba el que aparece antes en el DOM (no
+      // necesariamente el del calendario) — encontrado y verificado
+      // 2026-09-13 inspeccionando el DOM real de esta cuenta (ver
+      // PROGRESS.md). El botón real tiene accessible name propio, sin
+      // ambigüedad: `aria-label="Next month"`.
+      await page.getByRole("button", { name: "Next month" }).click();
     }
 
     throw new Error(`No se encontró el día "${label}" en el datepicker tras navegar 24 meses`);
