@@ -45,9 +45,11 @@ RLS policies en Supabase son las que efectivamente protegen los datos.
 
 ## Node version
 
-El workflow corre con **Node 20** en los tres jobs. No bajarlo a 18: Vitest 4
-requiere Node ≥20 (falla con un `SyntaxError` sobre `node:util`'s `styleText`
-si se corre en Node 18 — ver `test job` de CI si esto se toca).
+El workflow corre con **Node 22** en los tres jobs (subido desde 20 en
+2026-09-13 para sacar el warning de deprecación de GitHub Actions sobre el
+runtime Node 20). No bajarlo de 20: Vitest 4 requiere Node ≥20 (falla con un
+`SyntaxError` sobre `node:util`'s `styleText` si se corre en Node 18 — ver
+`test job` de CI si esto se toca).
 
 ## URLs de la app
 
