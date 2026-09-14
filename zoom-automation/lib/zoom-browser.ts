@@ -62,6 +62,26 @@ async function waitVisible(locator: Locator, timeout = 3000): Promise<boolean> {
     .catch(() => false);
 }
 
+// Encontrado 2026-09-14: la cuenta puede mostrar la UI en inglés o en
+// español según la sesión capturada (el idioma queda pegado a la cookie/
+// localStorage de quien haya logueado a mano, no al locale del runner que
+// corre esto) — cualquier selector por texto fijo en un solo idioma es
+// frágil a este cambio. `cancelMeeting` lo sufrió en silencio: no
+// encontraba "Delete" (estaba "Eliminar"), y una salvaguarda pensada para
+// "la reunión ya no existe" lo interpretó como éxito sin borrar nada — ver
+// PROGRESS.md 2026-09-14 para el incidente completo. Esta función arma un
+// nombre accesible que matchea cualquiera de los dos idiomas a la vez, sin
+// depender de cuál esté activo en el momento.
+// Sin anclar (sin ^$): mismo criterio de substring que ya usaba
+// getByRole con un string plano (sin exact:true) en el resto de este
+// archivo — un regex anclado rompería el único selector que ya dependía
+// de substring a propósito (`/Copy Invitation/`, por si el texto real
+// trae algo más pegado).
+function eitherName(en: string, es: string): RegExp {
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`${escape(en)}|${escape(es)}`);
+}
+
 function extractMeetingIdFromUrl(url: string): number {
   const match = url.match(/\/meeting\/(\d+)/);
   if (!match) throw new Error(`No se pudo extraer el meeting ID de la URL: ${url}`);
@@ -131,7 +151,8 @@ export class ZoomBrowserClient {
   // clicks de navegación — el límite de 24 es solo una salvaguarda.
   private async setDate(page: Page, date: Date, timezone: string): Promise<void> {
     const label = zoomDateOptionLabel(date, timezone);
-    await page.getByRole("combobox", { name: "Choose date" }).click();
+    // "Elegir fecha" sin confirmar contra el DOM real en español todavía.
+    await page.getByRole("combobox", { name: eitherName("Choose date", "Elegir fecha") }).click();
 
     for (let i = 0; i < 24; i++) {
       const dayButton = page.getByRole("button", { name: label });
@@ -148,7 +169,11 @@ export class ZoomBrowserClient {
       // 2026-09-13 inspeccionando el DOM real de esta cuenta (ver
       // PROGRESS.md). El botón real tiene accessible name propio, sin
       // ambigüedad: `aria-label="Next month"`.
-      await page.getByRole("button", { name: "Next month" }).click();
+      // "Next month" confirmado contra el DOM real (2026-09-13) — el
+      // aria-label de este botón puede quedar en inglés independientemente
+      // del idioma visible del resto de la UI (pasó con este mismo botón
+      // antes). "Mes siguiente" sumado como red de seguridad, sin confirmar.
+      await page.getByRole("button", { name: eitherName("Next month", "Mes siguiente") }).click();
     }
 
     throw new Error(`No se encontró el día "${label}" en el datepicker tras navegar 24 meses`);
@@ -168,7 +193,8 @@ export class ZoomBrowserClient {
     // la opción del dropdown (mismo patrón que ya usa `setDuration`) sí
     // confirma el valor — verificado que sobrevive a elegir la duración
     // después.
-    const combobox = page.getByRole("combobox", { name: "Select start time" });
+    // "Seleccionar hora de inicio" sin confirmar contra el DOM real todavía.
+    const combobox = page.getByRole("combobox", { name: eitherName("Select start time", "Seleccionar hora de inicio") });
     await combobox.click();
     await combobox.fill(label);
     await page.getByRole("option", { name: label, exact: true }).click();
@@ -178,14 +204,16 @@ export class ZoomBrowserClient {
     const hours = Math.floor(durationMinutes / 60);
     const minutes = durationMinutes % 60;
 
-    await page.getByRole("combobox", { name: "select duration hours" }).click();
+    // "seleccionar horas/minutos de duración" sin confirmar contra el DOM
+    // real todavía.
+    await page.getByRole("combobox", { name: eitherName("select duration hours", "seleccionar horas de duración") }).click();
     await page.getByRole("option", { name: String(hours), exact: true }).click();
     // Pausa corta: clickear el segundo combobox demasiado rápido después
     // de cerrar el primero (mismo tipo de widget) hace que el segundo click
     // no abra el dropdown todavía — confirmado reproduciendo el fallo real.
     await page.waitForTimeout(300);
 
-    await page.getByRole("combobox", { name: "select duration minutes" }).click();
+    await page.getByRole("combobox", { name: eitherName("select duration minutes", "seleccionar minutos de duración") }).click();
     // Los minutos pueden mostrarse con o sin cero a la izquierda ("0"/"00")
     // según el build de la UI — probar ambos antes de fallar.
     const minuteOption = page.getByRole("option", { name: String(minutes), exact: true });
@@ -206,9 +234,11 @@ export class ZoomBrowserClient {
   private async setAgenda(page: Page, agenda: string | null): Promise<void> {
     if (agenda === null) return;
 
-    const textarea = page.getByRole("textbox", { name: "Add Description" });
+    // "Agregar descripción" sin confirmar contra el DOM real todavía.
+    const addDescriptionName = eitherName("Add Description", "Agregar descripción");
+    const textarea = page.getByRole("textbox", { name: addDescriptionName });
     if (!(await waitVisible(textarea, 500))) {
-      await page.getByRole("button", { name: "Add Description" }).click();
+      await page.getByRole("button", { name: addDescriptionName }).click();
       await textarea.waitFor({ state: "visible", timeout: 3000 });
     }
     await textarea.fill(agenda);
@@ -217,8 +247,10 @@ export class ZoomBrowserClient {
   // Abre "Copy Invitation" en la página de detalle de una reunión ya
   // creada y devuelve join_url/passcode/meetingId parseados del texto.
   private async readInvitation(page: Page): Promise<{ joinUrl: string; passcode: string | null; meetingId: number }> {
-    await page.getByRole("button", { name: /Copy Invitation/ }).click();
-    const box = page.getByRole("textbox", { name: "copy invitation content" });
+    // "Copiar invitación"/"copiar contenido de la invitación" sin
+    // confirmar contra el DOM real todavía.
+    await page.getByRole("button", { name: eitherName("Copy Invitation", "Copiar invitación") }).click();
+    const box = page.getByRole("textbox", { name: eitherName("copy invitation content", "copiar contenido de la invitación") });
     const text = (await box.inputValue().catch(() => null)) ?? (await box.textContent()) ?? "";
     await page.keyboard.press("Escape"); // cerrar el diálogo/popover de invitación
     return parseInvitation(text);
@@ -230,19 +262,24 @@ export class ZoomBrowserClient {
       // "networkidle" no es confiable en este SPA (websockets/telemetría
       // que nunca terminan) — se espera un elemento concreto en su lugar.
       await page.goto(`${BASE_URL}/meeting#/upcoming`);
-      await page.getByRole("button", { name: "Schedule a Meeting" }).click({ timeout: 30_000 });
+      // "Programar una reunión" confirmado contra el DOM real (captura de
+      // pantalla del usuario, 2026-09-14).
+      await page
+        .getByRole("button", { name: eitherName("Schedule a Meeting", "Programar una reunión") })
+        .click({ timeout: 30_000 });
 
-      await page.getByRole("textbox", { name: "Topic" }).fill(desired.topic);
+      // "Tema" sin confirmar contra el DOM real todavía.
+      await page.getByRole("textbox", { name: eitherName("Topic", "Tema") }).fill(desired.topic);
       await this.setDate(page, desired.startsAt, desired.timezone);
       await this.setStartTime(page, desired.startsAt, desired.timezone);
       await this.setDuration(page, desired.durationMinutes);
       await this.setAgenda(page, desired.agenda);
 
       // TODO(codegen): el botón de confirmar no quedó grabado (el codegen
-      // saltó directo a la URL resultante) — asumido "Save" por analogía
-      // con el flujo de edición, que sí lo grabó. Verificar con
+      // saltó directo a la URL resultante) — asumido "Save"/"Guardar" por
+      // analogía con el flujo de edición, que sí lo grabó. Verificar con
       // ZOOM_HEADFUL=1 antes de confiar en el cron.
-      await page.getByRole("button", { name: "Save" }).click();
+      await page.getByRole("button", { name: eitherName("Save", "Guardar") }).click();
       await page.waitForURL(/\/meeting\/\d+/, { timeout: 15_000 });
 
       const zoomMeetingId = extractMeetingIdFromUrl(page.url());
@@ -259,28 +296,33 @@ export class ZoomBrowserClient {
 
   // El PATCH de la API conserva join_url; acá el equivalente es no borrar
   // y recrear la reunión, sino editar la misma — confirmado que la UI
-  // ofrece "Edit" sobre una reunión existente sin tocar su link.
+  // ofrece "Edit"/"Editar" sobre una reunión existente sin tocar su link.
   async updateMeeting(zoomMeetingId: number, desired: ZoomMeetingDesired): Promise<void> {
     const page = await this.openPage();
     try {
       await page.goto(`${BASE_URL}/meeting/${zoomMeetingId}`);
-      await page.getByRole("link", { name: "Edit" }).click({ timeout: 30_000 });
+      // "Editar" confirmado contra el DOM real (HTML pegado por el
+      // usuario, 2026-09-14) — causa raíz de por qué esto tiraba timeout:
+      // la cuenta mostraba la UI en español y este selector solo buscaba
+      // "Edit".
+      const editName = eitherName("Edit", "Editar");
+      await page.getByRole("link", { name: editName }).click({ timeout: 30_000 });
 
-      await page.getByRole("textbox", { name: "Topic" }).fill(desired.topic);
+      await page.getByRole("textbox", { name: eitherName("Topic", "Tema") }).fill(desired.topic);
       await this.setDate(page, desired.startsAt, desired.timezone);
       await this.setStartTime(page, desired.startsAt, desired.timezone);
       await this.setDuration(page, desired.durationMinutes);
       await this.setAgenda(page, desired.agenda);
 
-      await page.getByRole("button", { name: "Save" }).click();
+      await page.getByRole("button", { name: eitherName("Save", "Guardar") }).click();
       // La URL de edición ya matchea /meeting/\d+ ANTES de guardar (no hay
       // navegación real a otra URL) — esperar por eso solo no confirma
       // nada. La señal real de que el guardado terminó y se volvió a la
-      // vista de detalle es que reaparezca el link "Edit" (confirmado
-      // reproduciendo el bug real: sin este wait, el guardado se aborta a
-      // mitad de camino porque la página se cierra antes de que la request
-      // termine).
-      await page.getByRole("link", { name: "Edit" }).waitFor({ state: "visible", timeout: 15_000 });
+      // vista de detalle es que reaparezca el link "Edit"/"Editar"
+      // (confirmado reproduciendo el bug real: sin este wait, el guardado
+      // se aborta a mitad de camino porque la página se cierra antes de
+      // que la request termine).
+      await page.getByRole("link", { name: editName }).waitFor({ state: "visible", timeout: 15_000 });
     } catch (e) {
       await this.screenshotOnFailure(page, "update");
       throw e;
@@ -294,15 +336,25 @@ export class ZoomBrowserClient {
     try {
       await page.goto(`${BASE_URL}/meeting/${zoomMeetingId}`);
 
-      const deleteButton = page.getByRole("button", { name: "Delete" });
+      // "Eliminar" confirmado contra el DOM real (HTML pegado por el
+      // usuario, 2026-09-14) — causa raíz del incidente 2026-09-14: la
+      // cuenta mostraba la UI en español, este selector solo buscaba
+      // "Delete", nunca lo encontraba, y la salvaguarda de abajo (pensada
+      // para "la reunión ya no existe") lo tomaba como éxito sin borrar
+      // nada — 10 reuniones reales quedaron sin cancelar pese a que los 10
+      // jobs reportaron "OK". El console.warn es nuevo: ese camino no
+      // dejaba ningún rastro en los logs, así que una futura recaída
+      // (con o sin relación al idioma) al menos va a quedar visible.
+      const deleteName = eitherName("Delete", "Eliminar");
+      const deleteButton = page.getByRole("button", { name: deleteName });
       if (!(await waitVisible(deleteButton, 5000))) {
-        // Si la reunión ya no existe del lado de Zoom (borrada a mano, o un
-        // cancel duplicado tras un corte de red a mitad de apply), el
-        // objetivo ("que no exista") ya se cumple — no es un error.
+        console.warn(
+          `cancelMeeting(${zoomMeetingId}): no se encontró el botón de borrar — asumiendo que la reunión ya no existe del lado de Zoom.`,
+        );
         return;
       }
       await deleteButton.click();
-      await page.getByLabel("Delete Meeting").getByRole("button", { name: "Delete" }).click();
+      await page.getByLabel(eitherName("Delete Meeting", "Eliminar reunión")).getByRole("button", { name: deleteName }).click();
       // Igual que en updateMeeting: sin esperar la navegación real post-
       // borrado, cerrar la página acá aborta la request a mitad de camino
       // y la reunión queda sin borrarse pese a que el click "funcionó".
