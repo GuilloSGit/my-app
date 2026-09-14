@@ -26,6 +26,9 @@ export function ExceptionCreateDialog({ schedules, onClose, onDone }: ExceptionC
 
   const [date, setDate] = useState("");
   const [venue, setVenue] = useState("");
+  const [title, setTitle] = useState("");
+  const [withBranchRep, setWithBranchRep] = useState(false);
+  const [threeDays, setThreeDays] = useState(false);
 
   const [eventDays, setEventDays] = useState<string[]>([]);
   const [newDate, setNewDate] = useState("");
@@ -69,7 +72,14 @@ export function ExceptionCreateDialog({ schedules, onClose, onDone }: ExceptionC
     setLoading(true);
     const result = await createException(
       kind === "assembly"
-        ? { kind: "assembly", date, venue: venue || undefined }
+        ? {
+            kind: "assembly",
+            date,
+            venue: venue || undefined,
+            title: title || undefined,
+            withBranchRep,
+            threeDays,
+          }
         : {
             kind: "special_event",
             eventDays,
@@ -150,7 +160,28 @@ export function ExceptionCreateDialog({ schedules, onClose, onDone }: ExceptionC
               <div className="space-y-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                    Cualquier día de esa semana
+                    Título de la Asamblea (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Asamblea de Circuito..."
+                    className="w-full p-2.5 rounded-lg border bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border-slate-300 dark:border-zinc-700 focus:ring-2 focus:ring-media-agua focus:border-media-agua outline-none"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={withBranchRep}
+                    onChange={(e) => setWithBranchRep(e.target.checked)}
+                    className="rounded border-slate-300 dark:border-zinc-700"
+                  />
+                  Con representante de la Sucursal
+                </label>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                    {threeDays ? "Día de inicio de la Asamblea" : "Día de la Asamblea"}
                   </label>
                   <input
                     type="date"
@@ -159,6 +190,15 @@ export function ExceptionCreateDialog({ schedules, onClose, onDone }: ExceptionC
                     className="w-full p-2.5 rounded-lg border bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border-slate-300 dark:border-zinc-700 focus:ring-2 focus:ring-media-agua focus:border-media-agua outline-none"
                   />
                 </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={threeDays}
+                    onChange={(e) => setThreeDays(e.target.checked)}
+                    className="rounded border-slate-300 dark:border-zinc-700"
+                  />
+                  Asamblea de 3 días (calcula el día de cierre solo)
+                </label>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
                     Lugar (opcional)

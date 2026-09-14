@@ -1,7 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsHeaders, handleCorsPreflight } from "../_shared/cors.ts";
-import { defaultAssemblyLabel, matchingOccurrenceDates } from "../_shared/reconciler/occurrence-actions.ts";
+import {
+  addCalendarDays,
+  defaultAssemblyLabel,
+  matchingOccurrenceDates,
+} from "../_shared/reconciler/occurrence-actions.ts";
 import { occurrenceDateForWeek } from "../_shared/reconciler/occurrence-date.ts";
 import { isoWeekKeyFromCalendarDate } from "../_shared/reconciler/iso-week.ts";
 
@@ -36,6 +40,9 @@ interface Body {
   suppresses?: string[];
   createsZoom?: boolean;
   label?: string;
+  title?: string; // solo "assembly"
+  withBranchRep?: boolean; // solo "assembly"
+  threeDays?: boolean; // solo "assembly" — false/ausente = 1 día (el caso común)
 }
 
 function validationError(body: Body): string | null {
@@ -103,13 +110,21 @@ Deno.serve(async (req) => {
         await cancelIfExists(supabase, row.id, date);
       }
 
+      const startsOn = body.date!;
+      const endsOn = body.threeDays === true ? addCalendarDays(startsOn, 2) : startsOn;
+
       const { error: excError } = await supabase.from("schedule_exceptions").insert({
         kind: "assembly",
-        label: body.venue ?? defaultAssemblyLabel(referenceDate, (schedules?.[0] ?? {}).timezone ?? "UTC"),
+        label:
+          body.title ?? body.venue ?? defaultAssemblyLabel(referenceDate, (schedules?.[0] ?? {}).timezone ?? "UTC"),
         venue: body.venue ?? null,
         event_days: eventDays,
         suppresses: (schedules ?? []).map((s) => s.kind),
         creates_zoom: false,
+        title: body.title ?? null,
+        with_branch_rep: body.withBranchRep === true,
+        starts_on: startsOn,
+        ends_on: endsOn,
       });
       if (excError) throw new Error(excError.message);
     } else {

@@ -57,3 +57,16 @@ export function matchingOccurrenceDates(
     .filter((d) => weekdayOfDateString(d) === schedule.weekday)
     .map((d) => fromZonedTime(`${d}T${schedule.localTime}`, schedule.timezone));
 }
+
+// Suma días de calendario puro a una fecha "yyyy-MM-dd" (sin zona
+// horaria, mismo criterio que weekdayOfDateString) — usado por el form de
+// excepción de Asamblea para calcular `ends_on` a partir de `starts_on` +
+// 2 cuando el admin marca "3 días" (la mayoría de las asambleas son de un
+// solo día; la de 3 días es un caso aparte, una vez al año). El
+// constructor de Date con año/mes/día numéricos ya hace rollover de mes/
+// año correctamente (ej. 30 nov + 2 = 2 dic).
+export function addCalendarDays(dateStr: string, days: number): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const result = new Date(year, month - 1, day + days);
+  return `${result.getFullYear()}-${pad(result.getMonth() + 1)}-${pad(result.getDate())}`;
+}

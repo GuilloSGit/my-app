@@ -268,12 +268,15 @@ export type ExceptionKind = "assembly" | "special_event";
 
 export interface CreateExceptionInput {
   kind: ExceptionKind;
-  date?: string; // "yyyy-MM-dd", requerido para "assembly"
+  date?: string; // "yyyy-MM-dd", requerido para "assembly" (día de inicio si es de 3 días)
   venue?: string;
   eventDays?: string[]; // requerido para "special_event"
   suppresses?: ScheduleKind[]; // solo "special_event"
   createsZoom?: boolean; // solo "special_event"
   label?: string;
+  title?: string; // solo "assembly"
+  withBranchRep?: boolean; // solo "assembly"
+  threeDays?: boolean; // solo "assembly" — la mayoría son de 1 día
 }
 
 export async function createException(input: CreateExceptionInput): Promise<{ ok: boolean; error?: string }> {

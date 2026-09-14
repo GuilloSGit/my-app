@@ -4,6 +4,7 @@ import {
   defaultAssemblyLabel,
   weekdayOfDateString,
   matchingOccurrenceDates,
+  addCalendarDays,
 } from "@/supabase/functions/_shared/reconciler/occurrence-actions";
 
 const TZ = "America/Argentina/San_Juan";
@@ -61,5 +62,23 @@ describe("matchingOccurrenceDates", () => {
 
   it("devuelve vacío si ninguna fecha coincide con el weekday del schedule", () => {
     expect(matchingOccurrenceDates(["2026-09-14"], THURSDAY)).toEqual([]);
+  });
+});
+
+describe("addCalendarDays", () => {
+  it("suma días dentro del mismo mes", () => {
+    expect(addCalendarDays("2026-11-06", 2)).toBe("2026-11-08");
+  });
+
+  it("hace rollover de mes", () => {
+    expect(addCalendarDays("2026-11-30", 2)).toBe("2026-12-02");
+  });
+
+  it("hace rollover de año", () => {
+    expect(addCalendarDays("2026-12-31", 2)).toBe("2027-01-02");
+  });
+
+  it("con 0 días devuelve la misma fecha", () => {
+    expect(addCalendarDays("2026-11-06", 0)).toBe("2026-11-06");
   });
 });
