@@ -374,15 +374,27 @@ export class ZoomBrowserClient {
       await page.waitForURL(/#\/upcoming/, { timeout: 15_000 });
 
       // Verificación dura, nueva desde el incidente 2026-09-14: ya nos
-      // "mintió" una vez que un click sin excepción y una URL que cambia
-      // significaban éxito real. No alcanza — hay que confirmar contra el
-      // DOM real que la reunión ya no aparece en "Próximas" antes de
-      // darlo por bueno. El link "Iniciar" de cada fila apunta a
-      // `/s/{id}` en texto plano (sin agrupar en bloques de dígitos como
-      // el ID visible), más confiable que buscar el ID formateado.
-      await page.goto(`${BASE_URL}/meeting#/upcoming`);
+      // "mintió" dos veces seguidas — primero un click sin excepción que
+      // no borraba nada de verdad, después esta misma verificación dando
+      // un falso positivo de éxito. La causa del segundo: acá abajo hacía
+      // un `page.goto()` (recarga fría) y esperaba solo 3s — esta cuenta
+      // carga un montón de scripts de terceros pesados en esa página
+      // (GTM, Amplitude, widgets de monetización, chat), así que la lista
+      // todavía no había terminado de pedir/renderizar sus filas dentro
+      // de esos 3s, y "no lo encontré todavía" se confundió con "ya no
+      // existe". Fix: no recargar en frío — después de `waitForURL` ya
+      // estamos en la misma SPA con la ruta #/upcoming (navegación de
+      // Vue Router, no un reload), así que se espera a que la lista
+      // misma haya renderizado algo (o se confirme que está vacía) antes
+      // de buscar la ausencia, con un timeout bastante más generoso.
+      await page
+        .locator(".fixed-time-item, .meeting-item")
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+        .catch(() => {}); // lista genuinamente vacía es un resultado válido, no un error
+
       const stillListed = page.locator(`a[href="/s/${zoomMeetingId}"]`);
-      if (await waitVisible(stillListed, 3000)) {
+      if (await waitVisible(stillListed, 8000)) {
         throw new Error(
           `cancelMeeting(${zoomMeetingId}): se completó el flujo de borrado sin error, pero la reunión sigue apareciendo en "Próximas".`,
         );
