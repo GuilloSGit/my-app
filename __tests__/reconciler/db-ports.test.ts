@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { makeDryRunPorts } from "@/supabase/functions/_shared/reconciler/db-ports";
+import { makeDryRunPorts, isCacheFresh, WOL_CACHE_TTL_MS } from "@/supabase/functions/_shared/reconciler/db-ports";
 import type { ReconcilePorts } from "@/supabase/functions/_shared/reconciler/reconcile";
 import type { Schedule } from "@/supabase/functions/_shared/reconciler/types";
 
@@ -60,5 +60,32 @@ describe("makeDryRunPorts", () => {
       { action: "cancel", scheduleId: "s1", date: date.toISOString(), detail: "asamblea" },
       { action: "block", scheduleId: "s1", date: date.toISOString(), detail: "wol_section_missing" },
     ]);
+  });
+});
+
+describe("isCacheFresh", () => {
+  const now = new Date("2026-09-14T12:00:00.000Z");
+
+  it("fresco: recién cacheado", () => {
+    expect(isCacheFresh("2026-09-14T11:00:00.000Z", now)).toBe(true);
+  });
+
+  it("fresco: justo debajo del TTL (2 días)", () => {
+    const fetchedAt = new Date(now.getTime() - WOL_CACHE_TTL_MS + 1000).toISOString();
+    expect(isCacheFresh(fetchedAt, now)).toBe(true);
+  });
+
+  it("vencido: justo en el borde del TTL", () => {
+    const fetchedAt = new Date(now.getTime() - WOL_CACHE_TTL_MS).toISOString();
+    expect(isCacheFresh(fetchedAt, now)).toBe(false);
+  });
+
+  it("vencido: muy viejo", () => {
+    expect(isCacheFresh("2026-09-01T00:00:00.000Z", now)).toBe(false);
+  });
+
+  it("acepta un TTL custom", () => {
+    expect(isCacheFresh("2026-09-14T11:59:00.000Z", now, 30_000)).toBe(false);
+    expect(isCacheFresh("2026-09-14T11:59:50.000Z", now, 30_000)).toBe(true);
   });
 });

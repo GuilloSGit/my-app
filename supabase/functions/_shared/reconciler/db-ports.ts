@@ -12,6 +12,18 @@ function dateOnly(d: Date): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
+// Mismo cadence que el cron de reconcile ("reconcile-every-2-days", Fase
+// 5) — sin TTL, una semana cacheada quedaba congelada para siempre, así
+// que una corrección real en wol.jw.org (o, como pasó el 2026-09-14, un
+// campo nuevo que el cache viejo nunca llegó a tener) nunca se reflejaba
+// sin una intervención manual. Con este TTL, el peor caso es una semana
+// desactualizada por hasta un ciclo de cron, nunca "para siempre".
+export const WOL_CACHE_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+
+export function isCacheFresh(fetchedAt: string, now: Date, ttlMs: number = WOL_CACHE_TTL_MS): boolean {
+  return now.getTime() - new Date(fetchedAt).getTime() < ttlMs;
+}
+
 // Adaptador real: implementa ReconcilePorts contra Postgres, usando el
 // service_role auto-inyectado en toda Edge Function (nunca un secreto que
 // pase por esta sesión). Las tres escrituras van por RPC a funciones
@@ -58,26 +70,31 @@ export function makeDbPorts(supabase: SupabaseClient, schedule: Schedule): Recon
 
       if (readError) throw new Error(`getWolCached (read): ${readError.message}`);
 
-      if (cached) {
-        return {
-          midweek: cached.midweek_title
-            ? {
-                title: cached.midweek_title,
-                url: cached.midweek_url,
-                bibleReading: cached.midweek_bible_reading ?? null,
-              }
-            : null,
-          weekend: cached.weekend_title
-            ? { title: cached.weekend_title, url: cached.weekend_url }
-            : null,
-        };
+      const cachedResult = (): WolWeekResult => ({
+        midweek: cached.midweek_title
+          ? {
+              title: cached.midweek_title,
+              url: cached.midweek_url,
+              bibleReading: cached.midweek_bible_reading ?? null,
+            }
+          : null,
+        weekend: cached.weekend_title
+          ? { title: cached.weekend_title, url: cached.weekend_url }
+          : null,
+      });
+
+      if (cached && isCacheFresh(cached.fetched_at, new Date())) {
+        return cachedResult();
       }
 
-      // Sin cache: fetchWol devuelve null tanto para HTTP no-ok como para
-      // fallas de red — nunca lo cacheamos (es transitorio, el spec pide
-      // reintentar en la próxima corrida, no recordar un fallo).
+      // Sin cache, o cache vencido (TTL, ver arriba): refetch real.
+      // fetchWol devuelve null tanto para HTTP no-ok como para fallas de
+      // red — si había cache vencido, mejor devolver ese contenido viejo
+      // que nada: una ventana de TTL que venció en el peor momento (WOL
+      // caído justo esa corrida) no debe degradar a `wol_unreachable`
+      // cuando en realidad hay contenido (viejo, pero real) disponible.
       const fresh = await fetchWol(week);
-      if (fresh === null) return null;
+      if (fresh === null) return cached ? cachedResult() : null;
 
       const { error: writeError } = await supabase.from("wol_week_cache").upsert({
         week,
