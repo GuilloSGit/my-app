@@ -1,12 +1,23 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { parseWolHtml } from "@/supabase/functions/_shared/reconciler/wol";
+import { parseWolHtml, parseBibleReading } from "@/supabase/functions/_shared/reconciler/wol";
 
 // Fixture real: HTML de https://wol.jw.org/es/wol/meetings/r4/lp-s/2026/38
 // (fetch verificado en sesión, ver PROGRESS.md 2026-09-12).
 const REAL_HTML = readFileSync(
   path.join(__dirname, "..", "fixtures", "wol-2026-38.html"),
+  "utf-8",
+);
+
+// Fixtures reales: página del programa de cada reunión (item.url de arriba),
+// fetch verificado en sesión 2026-09-14 — ver PROGRESS.md.
+const MIDWEEK_PROGRAM_HTML = readFileSync(
+  path.join(__dirname, "..", "fixtures", "wol-2026-38-midweek-program.html"),
+  "utf-8",
+);
+const WEEKEND_PROGRAM_HTML = readFileSync(
+  path.join(__dirname, "..", "fixtures", "wol-2026-38-weekend-program.html"),
   "utf-8",
 );
 
@@ -72,5 +83,19 @@ describe("parseWolHtml — casos sintéticos", () => {
     const result = parseWolHtml(html);
     expect(result.midweek?.title).toBe("Vida");
     expect(result.weekend?.title).toBe("Atalaya");
+  });
+});
+
+describe("parseBibleReading — contra el DOM real de wol.jw.org", () => {
+  it("extrae la cita de Lectura de la Biblia de la página del programa de entresemana", () => {
+    expect(parseBibleReading(MIDWEEK_PROGRAM_HTML)).toBe("JEREMÍAS 34, 35");
+  });
+
+  it("devuelve null contra la página del programa de fin de semana (no tiene esta sección)", () => {
+    expect(parseBibleReading(WEEKEND_PROGRAM_HTML)).toBeNull();
+  });
+
+  it("devuelve null si no hay ningún <header> en la página", () => {
+    expect(parseBibleReading("<html><body><h2>Sin header</h2></body></html>")).toBeNull();
   });
 });

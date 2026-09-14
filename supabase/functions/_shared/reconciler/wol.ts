@@ -38,15 +38,60 @@ export function parseWolHtml(html: string): WolWeekResult {
   return { midweek: pick(SECTION.midweek), weekend: pick(SECTION.weekend) };
 }
 
-// Un solo fetch cubre ambas reuniones porque jueves y sábado caen en la
-// misma semana ISO. `null` (no `throw`) tanto para HTTP no-ok como para
-// fallas de red — el llamador (reconcileWeek) trata esto como transitorio
-// (`wol_unreachable`), nunca como cancelación.
+// La cita de "Lectura de la Biblia" de Vida y Ministerio vive en la página
+// del programa (item.url), no en la página índice de la semana — hace
+// falta un segundo fetch. Ancla en `header h2`: verificado contra el DOM
+// real (2026-09-14, semana 2026/38) que el <header> del documento
+// contiene siempre exactamente dos elementos, el <h1> con la fecha y un
+// único <h2> con la cita (a veces partida en más de un <a>/<strong>, ej.
+// "JEREMÍAS 34," + " 35") — nunca por el id numérico ("p2"), que es
+// simplemente el correlativo de párrafo de wol.jw.org y no algo que este
+// documento controle. La reunión de fin de semana no tiene una cita
+// equivalente (el <header> de esa página es un template totalmente
+// distinto, verificado contra el DOM real de esa misma semana) — por eso
+// esto solo se llama para `midweek`.
+export function parseBibleReading(html: string): string | null {
+  const $ = cheerio.load(html);
+  const h2 = $("header h2").first();
+  if (!h2.length) return null;
+
+  //   (nbsp) aparece entre los <a> partidos de la cita en el DOM real.
+  const text = h2.text().replace(/ /g, " ").replace(/\s+/g, " ").trim();
+  return text || null;
+}
+
+async function fetchBibleReading(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return parseBibleReading(await res.text());
+  } catch {
+    return null;
+  }
+}
+
+// Un solo fetch a la página índice cubre ambas reuniones porque jueves y
+// sábado caen en la misma semana ISO. `null` (no `throw`) tanto para HTTP
+// no-ok como para fallas de red — el llamador (reconcileWeek) trata esto
+// como transitorio (`wol_unreachable`), nunca como cancelación. El
+// segundo fetch (solo para midweek, la cita bíblica) es best-effort: si
+// falla, `bibleReading` queda `null` y el resto de la semana se procesa
+// igual — no vale la pena tratar esto como wol_unreachable cuando la
+// página índice sí respondió.
 export async function fetchWol(week: string): Promise<WolWeekResult | null> {
   try {
     const res = await fetch(`https://wol.jw.org/es/wol/meetings/r4/lp-s/${week}`);
     if (!res.ok) return null;
-    return parseWolHtml(await res.text());
+    const result = parseWolHtml(await res.text());
+
+    if (result.midweek) {
+      result.midweek = {
+        ...result.midweek,
+        bibleReading: await fetchBibleReading(result.midweek.url),
+      };
+    }
+
+    return result;
   } catch {
     return null;
   }

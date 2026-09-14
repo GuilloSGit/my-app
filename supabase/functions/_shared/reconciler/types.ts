@@ -54,6 +54,7 @@ export interface ScheduleException {
 export interface WolItem {
   title: string;
   url: string;
+  bibleReading?: string | null; // solo "midweek" — ver wol.ts
 }
 
 export interface WolWeekResult {

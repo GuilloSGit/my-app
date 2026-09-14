@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { reconcileWeek, reconcileMonth, type ReconcilePorts } from "@/supabase/functions/_shared/reconciler/reconcile";
+import { reconcileWeek, reconcileMonth, buildAgenda, type ReconcilePorts } from "@/supabase/functions/_shared/reconciler/reconcile";
 import type { Issue, Schedule, ScheduleException, WolWeekResult } from "@/supabase/functions/_shared/reconciler/types";
 
 const SCHEDULE: Schedule = {
@@ -65,6 +65,18 @@ const OK_WOL: WolWeekResult = {
   weekend: { title: "Otro artículo", url: "https://wol.jw.org/es/wol/d/r4/lp-s/2026999" },
 };
 
+describe("buildAgenda", () => {
+  it("sin bibleReading: título + url, sin línea extra", () => {
+    expect(buildAgenda({ title: "T", url: "https://x" })).toBe("T\nhttps://x");
+  });
+
+  it("con bibleReading: suma la línea de Lectura de la Biblia", () => {
+    expect(buildAgenda({ title: "T", url: "https://x", bibleReading: "JEREMÍAS 34, 35" })).toBe(
+      "T\nhttps://x\n\nLectura de la Biblia: JEREMÍAS 34, 35",
+    );
+  });
+});
+
 describe("reconcileWeek", () => {
   it("camino feliz: WOL con contenido -> upsertOccurrence con topic + agenda, sin issues bloqueantes", async () => {
     const { ports, state } = makeFakePorts({ wolByWeek: { "2026/38": OK_WOL } });
@@ -76,6 +88,20 @@ describe("reconcileWeek", () => {
     expect(fields.topic).toBe("Reunión de entresemana - Jueves 17/09");
     expect(fields.agenda).toBe(
       "Aprendamos de los gabaonitas\nhttps://wol.jw.org/es/wol/d/r4/lp-s/2026482",
+    );
+  });
+
+  it("con bibleReading en el item de WOL, la agenda suma la línea de Lectura de la Biblia", async () => {
+    const wolWithReading: WolWeekResult = {
+      midweek: { ...OK_WOL.midweek!, bibleReading: "JEREMÍAS 34, 35" },
+      weekend: OK_WOL.weekend,
+    };
+    const { ports, state } = makeFakePorts({ wolByWeek: { "2026/38": wolWithReading } });
+    await reconcileWeek("s1", "2026/38", [], ports, NOW);
+
+    const [[, fields]] = Array.from(state.occurrences.entries());
+    expect(fields.agenda).toBe(
+      "Aprendamos de los gabaonitas\nhttps://wol.jw.org/es/wol/d/r4/lp-s/2026482\n\nLectura de la Biblia: JEREMÍAS 34, 35",
     );
   });
 

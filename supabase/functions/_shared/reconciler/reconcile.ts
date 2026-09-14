@@ -1,5 +1,5 @@
 import { addMonths } from "date-fns";
-import type { Issue, MeetingKind, Schedule, ScheduleException, WolWeekResult } from "./types.ts";
+import type { Issue, MeetingKind, Schedule, ScheduleException, WolItem, WolWeekResult } from "./types.ts";
 import { buildTopic } from "./topic.ts";
 import { occurrenceDateForWeek } from "./occurrence-date.ts";
 import { isoWeeksBetween } from "./iso-week.ts";
@@ -90,8 +90,17 @@ export async function reconcileWeek(
 
   await ports.upsertOccurrence(scheduleId, date, {
     topic: buildTopic(schedule.kind, date, schedule.timezone),
-    agenda: `${item.title}\n${item.url}`,
+    agenda: buildAgenda(item),
   });
+}
+
+// Función pura: separada de reconcileWeek para poder testearla sin pasar
+// por todo el fake de puertos. `bibleReading` solo existe en items de
+// "midweek" (ver WolItem/wol.ts) — un item de "weekend" simplemente nunca
+// lo trae, así que esta rama no hace falta condicionarla por schedule.kind.
+export function buildAgenda(item: WolItem): string {
+  const base = `${item.title}\n${item.url}`;
+  return item.bibleReading ? `${base}\n\nLectura de la Biblia: ${item.bibleReading}` : base;
 }
 
 // Una transacción/llamada por semana vive del lado del puerto

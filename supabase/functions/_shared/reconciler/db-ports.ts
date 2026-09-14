@@ -61,7 +61,11 @@ export function makeDbPorts(supabase: SupabaseClient, schedule: Schedule): Recon
       if (cached) {
         return {
           midweek: cached.midweek_title
-            ? { title: cached.midweek_title, url: cached.midweek_url }
+            ? {
+                title: cached.midweek_title,
+                url: cached.midweek_url,
+                bibleReading: cached.midweek_bible_reading ?? null,
+              }
             : null,
           weekend: cached.weekend_title
             ? { title: cached.weekend_title, url: cached.weekend_url }
@@ -79,6 +83,7 @@ export function makeDbPorts(supabase: SupabaseClient, schedule: Schedule): Recon
         week,
         midweek_title: fresh.midweek?.title ?? null,
         midweek_url: fresh.midweek?.url ?? null,
+        midweek_bible_reading: fresh.midweek?.bibleReading ?? null,
         weekend_title: fresh.weekend?.title ?? null,
         weekend_url: fresh.weekend?.url ?? null,
         fetched_at: new Date().toISOString(),
