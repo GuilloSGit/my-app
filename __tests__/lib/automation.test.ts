@@ -25,6 +25,8 @@ import {
   triggerZoomSync,
   scheduleKindLabel,
   occurrenceStatusLabel,
+  buildOccurrenceShareMessage,
+  Occurrence,
 } from "@/lib/automation";
 
 beforeEach(() => {
@@ -160,6 +162,45 @@ describe("labels", () => {
     expect(occurrenceStatusLabel("synced")).toBe("Sincronizada");
     expect(occurrenceStatusLabel("cancelled")).toBe("Cancelada");
     expect(occurrenceStatusLabel("blocked")).toBe("Bloqueada");
+  });
+});
+
+describe("buildOccurrenceShareMessage", () => {
+  const base: Occurrence = {
+    id: "1",
+    scheduleId: "s1",
+    scheduleKind: "midweek",
+    startsAt: "2026-09-17T22:00:00.000Z",
+    durationMinutes: 120,
+    topic: "Reunión de entresemana - Jueves 17/09",
+    agenda: null,
+    joinUrl: "https://zoom.us/j/123",
+    passcode: "abc123",
+    status: "synced",
+    blockedReason: null,
+    origin: "schedule",
+    pinned: false,
+  };
+
+  it("incluye título, fecha, link y contraseña", () => {
+    const msg = buildOccurrenceShareMessage(base);
+    expect(msg).toContain("*Reunión de entresemana - Jueves 17/09*");
+    expect(msg).toContain("Link: https://zoom.us/j/123");
+    expect(msg).toContain("Contraseña: abc123");
+  });
+
+  it("suma la agenda de WOL cuando existe", () => {
+    const msg = buildOccurrenceShareMessage({
+      ...base,
+      agenda: "Tesoros de la Biblia\nhttps://wol.jw.org/es/wol/x",
+    });
+    expect(msg).toContain("Tesoros de la Biblia\nhttps://wol.jw.org/es/wol/x");
+  });
+
+  it("omite agenda/link/contraseña cuando son null", () => {
+    const msg = buildOccurrenceShareMessage({ ...base, agenda: null, joinUrl: null, passcode: null });
+    expect(msg).not.toContain("Link:");
+    expect(msg).not.toContain("Contraseña:");
   });
 });
 

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { formatMeetingDate } from "./meetings";
 
 export type ScheduleKind = "midweek" | "weekend";
 export type OccurrenceStatus = "pending" | "synced" | "cancelled" | "blocked";
@@ -28,6 +29,33 @@ export interface Occurrence {
   blockedReason: string | null;
   origin: OccurrenceOrigin;
   pinned: boolean;
+}
+
+// Mensaje para compartir por WhatsApp (mismo tono que
+// components/whatsapp-share.tsx, que usa el flujo manual viejo de
+// `meetings`) — a diferencia de ese, acá agenda ya viene con el contenido
+// real de wol.jw.org (Fase 3: "{título de la sección}\n{url}"), así que se
+// suma al mensaje cuando existe en vez de perderse.
+export function buildOccurrenceShareMessage(occurrence: Occurrence): string {
+  const lines = [
+    "¡Hola!",
+    "",
+    "Te comparto los datos para la reunión de la Congregación Media Agua:",
+    "",
+    `-> *${occurrence.topic}*`,
+    `-> ${formatMeetingDate(occurrence.startsAt)}`,
+  ];
+
+  if (occurrence.agenda) {
+    lines.push("", occurrence.agenda);
+  }
+
+  lines.push("");
+  if (occurrence.joinUrl) lines.push(`Link: ${occurrence.joinUrl}`);
+  if (occurrence.passcode) lines.push(`Contraseña: ${occurrence.passcode}`);
+  lines.push("", "¡Te esperamos!");
+
+  return lines.join("\n");
 }
 
 export interface ReconcileRunSummary {

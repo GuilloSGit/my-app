@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { AuthGuard } from "@/components/auth-guard";
 import { OccurrenceStatusBadge } from "@/components/occurrence-status-badge";
 import { CopyButton } from "@/components/copy-button";
+import { OccurrenceWhatsAppShare } from "@/components/occurrence-whatsapp-share";
 import { ScheduleEditorDialog } from "@/components/schedule-editor-dialog";
 import { OccurrenceActionDialog } from "@/components/occurrence-action-dialog";
 import { ExceptionCreateDialog } from "@/components/exception-create-dialog";
@@ -240,7 +241,12 @@ function AutomatizacionContent() {
                             </div>
                             <div className="flex items-center gap-3">
                               <OccurrenceStatusBadge status={occurrence.status} />
-                              {occurrence.joinUrl && <CopyButton text={occurrence.joinUrl} label="Link" />}
+                              {occurrence.joinUrl && (
+                                <>
+                                  <CopyButton text={occurrence.joinUrl} label="Link" />
+                                  <OccurrenceWhatsAppShare occurrence={occurrence} />
+                                </>
+                              )}
                               {occurrence.status !== "cancelled" && (
                                 <button
                                   onClick={() => setActionOccurrence(occurrence)}
