@@ -336,6 +336,15 @@ export class ZoomBrowserClient {
     try {
       await page.goto(`${BASE_URL}/meeting/${zoomMeetingId}`);
 
+      // Diagnóstico temporal 2026-09-14 (incidente cancelMeeting): con
+      // ZOOM_DEBUG_PAUSE=1 (y ZOOM_HEADFUL=1) abre el Inspector de
+      // Playwright acá y frena la ejecución — la ventana queda abierta e
+      // interactiva hasta que se le da "Resume" a mano, en vez de
+      // cerrarse sola en segundos. Sacar una vez resuelto el incidente.
+      if (process.env.ZOOM_DEBUG_PAUSE === "1") {
+        await page.pause();
+      }
+
       // "Eliminar" confirmado contra el DOM real (HTML pegado por el
       // usuario, 2026-09-14) — causa raíz del incidente 2026-09-14: la
       // cuenta mostraba la UI en español, este selector solo buscaba
@@ -351,6 +360,12 @@ export class ZoomBrowserClient {
         console.warn(
           `cancelMeeting(${zoomMeetingId}): no se encontró el botón de borrar — asumiendo que la reunión ya no existe del lado de Zoom.`,
         );
+        // Captura también acá, no solo en el catch de abajo: este camino
+        // nunca tira excepción, así que hasta ahora una corrida en CI que
+        // pasara por acá no dejaba ninguna evidencia visual — encontrado
+        // 2026-09-14 corriendo esto en local contra una sesión vencida,
+        // que aterrizó en la pantalla de login sin que nada lo notara.
+        await this.screenshotOnFailure(page, "cancel-button-not-found");
         return;
       }
       await deleteButton.click();
