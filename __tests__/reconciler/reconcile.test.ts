@@ -75,6 +75,23 @@ describe("buildAgenda", () => {
       "T\nhttps://x\n\nLectura de la Biblia: JEREMÍAS 34, 35",
     );
   });
+
+  it("con edition: la suma entre el título y la url", () => {
+    expect(buildAgenda({ title: "T", url: "https://x", edition: "La Atalaya (estudio) 2026 | julio" })).toBe(
+      "T\nLa Atalaya (estudio) 2026 | julio\nhttps://x",
+    );
+  });
+
+  it("con edition y bibleReading juntos", () => {
+    expect(
+      buildAgenda({
+        title: "T",
+        url: "https://x",
+        edition: "Guía de actividades 2026 | septiembre",
+        bibleReading: "JEREMÍAS 34, 35",
+      }),
+    ).toBe("T\nGuía de actividades 2026 | septiembre\nhttps://x\n\nLectura de la Biblia: JEREMÍAS 34, 35");
+  });
 });
 
 describe("reconcileWeek", () => {

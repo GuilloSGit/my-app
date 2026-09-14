@@ -22,19 +22,21 @@ const WEEKEND_PROGRAM_HTML = readFileSync(
 );
 
 describe("parseWolHtml — contra el DOM real de wol.jw.org", () => {
-  it("extrae el item de Vida y Ministerio (midweek)", () => {
+  it("extrae el item de Vida y Ministerio (midweek), con edición", () => {
     const result = parseWolHtml(REAL_HTML);
     expect(result.midweek).toEqual({
       title: "14-20 de septiembre",
       url: "https://wol.jw.org/es/wol/d/r4/lp-s/202026253",
+      edition: "Guía de actividades 2026 | septiembre",
     });
   });
 
-  it("extrae el item de Estudio de La Atalaya (weekend)", () => {
+  it("extrae el item de Estudio de La Atalaya (weekend), con edición", () => {
     const result = parseWolHtml(REAL_HTML);
     expect(result.weekend).toEqual({
       title: "El libro de Isaías nos consuela",
       url: "https://wol.jw.org/es/wol/d/r4/lp-s/2026483",
+      edition: "La Atalaya (estudio) 2026 | julio",
     });
   });
 
@@ -60,7 +62,7 @@ describe("parseWolHtml — casos sintéticos", () => {
     expect(result.weekend).toBeNull();
   });
 
-  it("usa el fallback a texto completo del link si .cardLine1 no existe", () => {
+  it("usa el fallback a texto completo del link si .cardLine1 no existe (sin edition)", () => {
     const html = `
       <h2>Estudio de La Atalaya</h2>
       <ul><li><a href="/es/wol/d/r4/lp-s/3">Un título sin markup de card</a></li></ul>
@@ -69,7 +71,17 @@ describe("parseWolHtml — casos sintéticos", () => {
     expect(result.weekend).toEqual({
       title: "Un título sin markup de card",
       url: "https://wol.jw.org/es/wol/d/r4/lp-s/3",
+      edition: null,
     });
+  });
+
+  it("extrae edition (.cardLine2) cuando existe, null si no", () => {
+    const html = `
+      <h2>Estudio de La Atalaya</h2>
+      <ul><li><a href="/x"><div class="cardLine1">Título</div><div class="cardLine2">La Atalaya (estudio) 2026 | julio</div></a></li></ul>
+    `;
+    const result = parseWolHtml(html);
+    expect(result.weekend?.edition).toBe("La Atalaya (estudio) 2026 | julio");
   });
 
   it("ancla por texto del h2, no por posición", () => {

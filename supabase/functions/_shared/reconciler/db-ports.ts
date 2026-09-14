@@ -75,11 +75,12 @@ export function makeDbPorts(supabase: SupabaseClient, schedule: Schedule): Recon
           ? {
               title: cached.midweek_title,
               url: cached.midweek_url,
+              edition: cached.midweek_edition ?? null,
               bibleReading: cached.midweek_bible_reading ?? null,
             }
           : null,
         weekend: cached.weekend_title
-          ? { title: cached.weekend_title, url: cached.weekend_url }
+          ? { title: cached.weekend_title, url: cached.weekend_url, edition: cached.weekend_edition ?? null }
           : null,
       });
 
@@ -100,9 +101,11 @@ export function makeDbPorts(supabase: SupabaseClient, schedule: Schedule): Recon
         week,
         midweek_title: fresh.midweek?.title ?? null,
         midweek_url: fresh.midweek?.url ?? null,
+        midweek_edition: fresh.midweek?.edition ?? null,
         midweek_bible_reading: fresh.midweek?.bibleReading ?? null,
         weekend_title: fresh.weekend?.title ?? null,
         weekend_url: fresh.weekend?.url ?? null,
+        weekend_edition: fresh.weekend?.edition ?? null,
         fetched_at: new Date().toISOString(),
       });
       if (writeError) throw new Error(`getWolCached (write): ${writeError.message}`);

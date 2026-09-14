@@ -54,6 +54,7 @@ export interface ScheduleException {
 export interface WolItem {
   title: string;
   url: string;
+  edition?: string | null; // "cardLine2" de wol.jw.org, ambos kinds — ver wol.ts
   bibleReading?: string | null; // solo "midweek" — ver wol.ts
 }
 

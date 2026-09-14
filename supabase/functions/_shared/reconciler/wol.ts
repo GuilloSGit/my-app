@@ -32,7 +32,15 @@ export function parseWolHtml(html: string): WolWeekResult {
     const cardLine1 = a.find(".cardLine1").first();
     const title = cardLine1.length ? cardLine1.text().trim() : a.text().trim();
 
-    return { title, url: new URL(href, "https://wol.jw.org").toString() };
+    // `.cardLine2`: la edición/publicación de esa tarjeta (ej. "La Atalaya
+    // (estudio) 2026 | julio", "Guía de actividades 2026 | septiembre") —
+    // verificado contra el DOM real (2026-09-14, semana 2026/37). A
+    // diferencia de `.cardLine1`, no hay fallback: si no está, `edition`
+    // queda `null` en vez de arriesgar texto de otro elemento.
+    const cardLine2 = a.find(".cardLine2").first();
+    const edition = cardLine2.length ? cardLine2.text().trim() : null;
+
+    return { title, url: new URL(href, "https://wol.jw.org").toString(), edition };
   };
 
   return { midweek: pick(SECTION.midweek), weekend: pick(SECTION.weekend) };

@@ -95,11 +95,18 @@ export async function reconcileWeek(
 }
 
 // Función pura: separada de reconcileWeek para poder testearla sin pasar
-// por todo el fake de puertos. `bibleReading` solo existe en items de
-// "midweek" (ver WolItem/wol.ts) — un item de "weekend" simplemente nunca
-// lo trae, así que esta rama no hace falta condicionarla por schedule.kind.
+// por todo el fake de puertos. `edition` existe en items de ambos kinds
+// (ej. "La Atalaya (estudio) 2026 | julio" en weekend, "Guía de
+// actividades 2026 | septiembre" en midweek). `bibleReading` solo existe
+// en items de "midweek" (ver WolItem/wol.ts) — un item de "weekend"
+// simplemente nunca lo trae, así que esa rama no hace falta condicionarla
+// por schedule.kind.
 export function buildAgenda(item: WolItem): string {
-  const base = `${item.title}\n${item.url}`;
+  const lines = [item.title];
+  if (item.edition) lines.push(item.edition);
+  lines.push(item.url);
+
+  const base = lines.join("\n");
   return item.bibleReading ? `${base}\n\nLectura de la Biblia: ${item.bibleReading}` : base;
 }
 
