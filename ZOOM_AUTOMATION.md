@@ -319,12 +319,17 @@ fallar porque la sesión lo redirige al login.
   `complete_zoom_job`, con captura de screenshot en cualquier falla
   (`zoom-automation/.session/failures/`, subida como artifact de GitHub
   Actions cuando el workflow falla).
-- `.github/workflows/zoom-apply-browser.yml` — cron cada 10 minutos +
-  `workflow_dispatch`. Restaura la sesión concatenando los secrets
-  `ZOOM_SESSION_STATE_B64_1`+`ZOOM_SESSION_STATE_B64_2` (base64 del archivo
-  de `capture-session.ts`, partido en dos — un solo secret de GitHub no
-  alcanza, límite 64 KB, y el archivo en base64 pesa ~100 KB incluso
-  filtrado a solo cookies de `*.zoom.us`), corre `npm run zoom:apply` con
+- `.github/workflows/zoom-apply-browser.yml` — **sin `schedule:` propio a
+  propósito** (ver Fase 5 más abajo), solo `workflow_dispatch`, disparado
+  por el botón "Sincronizar ahora" o por `reconcile` al terminar. Restaura
+  la sesión concatenando los secrets `ZOOM_SESSION_STATE_B64_1..N` (base64
+  del archivo de `capture-session.ts`, partido en pedazos de ~20 KB — un
+  solo secret de GitHub no alcanza, un valor de ~50 KB ya dio "too large").
+  **N creció de 5 a 13 al recapturar la sesión el 2026-09-13** (Zoom u
+  otro tercero debe estar seteando más localStorage/cookies que antes bajo
+  `*.zoom.us`, sin causa identificada) — si vuelve a crecer, hay que
+  agregar más secrets `ZOOM_SESSION_STATE_B64_N` Y sumarlos al workflow, no
+  alcanza con solo recapturar. Corre `npm run zoom:apply` con
   `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` como secrets del repo, y sube
   capturas de pantalla si algo falla.
 
@@ -342,7 +347,7 @@ antes un solo lugar (Supabase), ahora dos (Supabase + GitHub). Decisión
 aceptada conscientemente por el usuario al elegir este camino en vez de
 quedarse bloqueados por el permiso de cuenta.
 
-### Estado: `ZoomBrowserClient` verificado de punta a punta (2026-09-25)
+### Estado: `ZoomBrowserClient` verificado de punta a punta (2026-09-12)
 
 Con autorización explícita del usuario para acciones sobre el sistema real,
 se probaron `createMeeting`/`updateMeeting`/`cancelMeeting` contra la cuenta
@@ -384,18 +389,35 @@ después). Hallazgos y fixes durante la verificación:
   form tiene un botón "Add Description" que revela un
   `<textarea id="agenda">`, usado en `createMeeting`/`updateMeeting`.
 
-### Pendiente para activar el cron desatendido
+Dos bugs más, encontrados en Fase 5 (2026-09-13) corriendo el flujo contra
+reuniones reales del cron, no reuniones de prueba:
 
-1. Cargar `ZOOM_SESSION_STATE_B64_1`/`ZOOM_SESSION_STATE_B64_2` (base64 de
-   `zoom-automation/.session/zoom-storage-state.json` partido en dos —
-   un solo secret no alcanza, ver "Gotcha: límite de tamaño" en
-   PROGRESS.md 2026-09-12), `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`
-   como **Secrets** del repo en GitHub (pestaña "Secrets", no "Variables"
-   — son cosas distintas, "Variables" no cifra nada) — el usuario lo hace
-   él mismo desde GitHub, nunca pegando esos valores en el chat.
-2. Activar el cron de `.github/workflows/zoom-apply-browser.yml`.
-3. Monitorear las primeras corridas reales (contra el outbox real, no
-   reuniones de prueba) antes de confiar en que corra sola indefinidamente.
+- **`setStartTime` dejaba las 12 ocurrencias de la primera corrida real a
+  las 18:00**, sin importar el horario del schedule: `fill()+press("Enter")`
+  deja el valor visible en el input pero no lo confirma en el estado
+  interno del componente, y el paso siguiente (`setDuration`) lo pisa con
+  el default. Fix: clickear la opción del dropdown
+  (`getByRole("option", { name: label, exact: true })`), igual que ya
+  hacía `setDuration`. Ver PROGRESS.md 2026-09-13.
+- **El chevron "mes siguiente" del datepicker tironeaba con timeout de
+  30s**: el selector por clase CSS (`.zoom-inline-chevron-icon`) es
+  ambiguo — la comparten 9 elementos de la página (combobox de Duration,
+  Time Zone, etc.), y `.first()` agarraba el equivocado. Fix:
+  `page.getByRole("button", { name: "Next month" })` (accesible por rol,
+  no por clase interna). Ver PROGRESS.md 2026-09-13.
+
+### Sesión y cron: estado actual (Fase 5)
+
+La sesión capturada expira sin aviso previo de Zoom — pasó una vez en
+producción (los 12 jobs de la primera corrida real quedaron `pending`) y
+se resolvió recapturándola (`npm run zoom:capture-session`, a mano, nunca
+en CI). Al recapturar, el archivo pesó más y los secrets de GitHub pasaron
+de 5 a 13 (`ZOOM_SESSION_STATE_B64_1..13`, ver "Piezas" arriba) — hay que
+actualizar tanto los secrets como `.github/workflows/zoom-apply-browser.yml`
+juntos si esto vuelve a pasar. El workflow sigue **sin `schedule:` propio a
+propósito** (ver "Jobs (Fase 5)" más abajo): lo disparan el botón
+"Sincronizar ahora" o `reconcile` al terminar, nunca un cron de GitHub
+Actions corriendo solo.
 
 ---
 

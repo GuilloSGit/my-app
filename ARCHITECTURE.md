@@ -55,12 +55,30 @@ externa, sin permisos para crear apps en su Marketplace — la API REST de
 Zoom (Fase 2, `supabase/functions/zoom-apply`) quedó pausada por eso.**
 En su lugar, `zoom-automation/` maneja la UI web de Zoom con Playwright
 (que sí funciona con el rol de esta cuenta), corriendo vía
-`.github/workflows/zoom-apply-browser.yml` (cron, no Supabase — Playwright
-necesita un navegador real, que Deno Edge Functions no soporta). Consume
-el mismo `zoom_outbox`/`dequeue_zoom_jobs`/`complete_zoom_job` que la Edge
-Function pausada. Verificado de punta a punta contra la cuenta real.
-Detalle de los selectores/bugs encontrados en `ZOOM_AUTOMATION.md` y
-`PROGRESS.md` 2026-09-12.
+`.github/workflows/zoom-apply-browser.yml` — **sin `schedule:` propio a
+propósito** (Playwright+Chromium contra una cola vacía sería gasto de
+minutos de CI), disparado por el botón "Sincronizar ahora" o por
+`reconcile` al terminar (ver Fase 5 abajo). Consume el mismo
+`zoom_outbox`/`dequeue_zoom_jobs`/`complete_zoom_job` que la Edge Function
+pausada. Verificado de punta a punta contra la cuenta real. Detalle de los
+selectores/bugs encontrados en `ZOOM_AUTOMATION.md` y `PROGRESS.md`
+2026-09-12/13.
+
+**Fase 5 (2026-09-13): el sistema quedó activo en producción, aunque
+todavía no es el único.** `pg_cron` dispara `reconcile` cada 2 días (no
+diario) para cada `meeting_schedules` activo; si la corrida no es dry-run,
+`reconcile` dispara `zoom-apply-browser` fire-and-forget al terminar
+(mismo mecanismo que "Sincronizar ahora", llamado directo — sin pasar por
+la Edge Function gateada para JWT de browser). Esto ya creó reuniones de
+Zoom reales sin intervención manual. **Pero `/dashboard` (lo que usa la
+congregación) sigue leyendo de la tabla vieja `meetings`, no de
+`meeting_occurrences`** — las dos conviven en paralelo a propósito
+(decisión del usuario 2026-09-13, para no improvisar el corte); retirar
+`zoom-import-dialog.tsx`/`lib/zoom-parser.ts` y pasar `/dashboard` a
+`meeting_occurrences` sigue siendo el ítem pendiente de Fase 5 que hace de
+este sistema el autoritativo. Hasta que eso pase, cualquier cambio a
+`lib/meetings.ts` o al flujo manual de Zoom sigue siendo real y necesario
+— no es código muerto.
 
 ## Estructura de carpetas
 
@@ -70,6 +88,8 @@ app/
   layout.tsx           Root layout: fuentes, metadata/OG, manifest, ThemeProvider
   login/page.tsx       Login por magic link
   dashboard/page.tsx   Dashboard de reuniones (requiere sesión, AuthGuard)
+  dashboard/automatizacion/page.tsx   Vista de mes de la automatización de
+                        Zoom (admin-only, ver más abajo y ZOOM_AUTOMATION.md)
 
 components/
   auth-guard.tsx        Redirige a /login si no hay sesión
@@ -95,6 +115,29 @@ lib/
 __tests__/                Vitest: unit, integration, components (RTL)
 e2e/                       Playwright: specs + helpers/mock-supabase.ts
 .github/workflows/deploy.yml   CI: test → build → deploy
+
+supabase/functions/        Edge Functions (Deno) de la automatización de Zoom
+  reconcile                 Cron (pg_cron, cada 2 días): escanea 1 mes, encola
+                             zoom_outbox, dispara zoom-apply-browser al terminar
+  zoom-apply                Cliente Zoom vía API REST (Fase 2, dormido — ver
+                             ARCHITECTURE.md arriba y ZOOM_AUTOMATION.md)
+  zoom-apply-dispatch        Dispara zoom-apply-browser.yml vía API de GitHub
+                             (botón "Sincronizar ahora", gate requireAdmin)
+  exception-create, occurrence-action, schedule-write   Escrituras del admin
+                             (gate requireAdmin), UI en components/*-dialog.tsx
+  _shared/reconciler/        Lógica pura: expand, diff, parser WOL, topic
+  _shared/zoom/               Cliente Zoom (Fase 2, dormido)
+  _shared/admin-auth.ts        requireAdmin(jwt) — valida sesión + ADMIN_EMAILS
+  _shared/github/              Dispatch de workflows de GitHub Actions
+
+zoom-automation/            Script standalone (Node + Playwright, fuera de
+                             Next/Deno) que reemplaza a zoom-apply (Fase 2-bis)
+  capture-session.ts          Captura de sesión a mano (nunca en CI)
+  apply.ts                    Loop dequeue → ZoomBrowserClient → complete
+  lib/zoom-browser.ts          ZoomBrowserClient: create/update/cancelMeeting
+  lib/outbox.ts                Mismo contrato RPC que usa zoom-apply
+.github/workflows/zoom-apply-browser.yml   Sin schedule: propio a propósito,
+                             solo workflow_dispatch (ver Fase 5 arriba)
 ```
 
 ## Modelo de datos
@@ -234,6 +277,26 @@ sección `## Tests`):
   grande (ej. una sesión de browser serializada), partirlo en varios
   secrets de ~20 KB y concatenarlos en el workflow antes de usarlos — ver
   `.github/workflows/zoom-apply-browser.yml`.
+- **En `zoom-automation/lib/zoom-browser.ts`, `combobox.fill(label) +
+  press("Enter")` deja el valor visible en el input pero no lo confirma en
+  el estado interno de la app** (componente controlado que no escucha ese
+  evento en este widget puntual) — un paso siguiente que dispare un
+  re-render (ej. seleccionar la duración) pisa el valor con el default sin
+  ningún error visible. Pasó con `setStartTime`: las 12 ocurrencias de la
+  primera corrida real del cron quedaron todas a las 18:00 en vez del
+  horario real. Fix/patrón correcto: clickear la opción del dropdown
+  (`getByRole("option", { name: label, exact: true })`), igual que ya hace
+  `setDuration`. Ver PROGRESS.md 2026-09-13.
+- **En esa misma UI, una clase CSS puede estar compartida por varios
+  elementos no relacionados** (ej. `.zoom-inline-chevron-icon` la
+  comparten el chevron del datepicker Y los de los combobox de Duration/
+  Time Zone/etc. — 9 matches en la página) — `.first()` sobre un selector
+  así agarra el que aparece antes en el DOM, no necesariamente el que se
+  quiere, y el click puede quedar interceptado por un elemento sin
+  relación (timeout de 30s reintentando). Preferir siempre un selector
+  accesible por rol/nombre (`page.getByRole("button", { name:
+  "Next month" })`) en vez de una clase CSS interna — mismo patrón que ya
+  usa el resto de `zoom-browser.ts`. Ver PROGRESS.md 2026-09-13.
 - **Nunca prefijar `NEXT_PUBLIC_` a una clave `service_role` u otro secreto
   real.** Cualquier variable `NEXT_PUBLIC_*` se inlinea en el bundle del
   cliente en `next build` — con `output: 'export'` eso significa que queda

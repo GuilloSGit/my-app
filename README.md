@@ -203,13 +203,19 @@ my-app/
 ├── e2e/                    # Tests E2E en navegador real (Playwright)
 ├── public/                 # Íconos, manifest, service worker
 ├── supabase/               # Edge Functions + migraciones — automatización de
-│                           #   reuniones Zoom, en construcción. Ver ZOOM_AUTOMATION.md
+│                           #   reuniones Zoom. Ver ZOOM_AUTOMATION.md
+├── zoom-automation/        # Script Node + Playwright que aplica los cambios
+│                           #   contra la UI web de Zoom (fuera de Next/Deno)
 ├── vitest.config.ts
 └── playwright.config.ts
 ```
 
-> **Automatización de reuniones Zoom** (en construcción, no reemplaza el
-> flujo manual de arriba todavía): ver `ZOOM_AUTOMATION.md` (spec y
+> **Automatización de reuniones Zoom**: activa en producción (cron cada 2
+> días crea/actualiza/cancela reuniones reales de Zoom sin intervención
+> manual), pero **todavía no reemplaza** el flujo manual de arriba —
+> `/dashboard` sigue leyendo de la tabla `meetings` vieja, las dos
+> conviven en paralelo a propósito. Panel de solo-admin en
+> `/dashboard/automatizacion`. Ver `ZOOM_AUTOMATION.md` (spec y
 > arquitectura), `ROADMAP.md` (fases) y `PROGRESS.md` (bitácora).
 
 ## Deploy

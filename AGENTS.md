@@ -100,6 +100,14 @@ pantalla.
 - El seam `window.__E2E_SUPABASE__` en `lib/supabase.ts` es exclusivamente
   para Playwright — no es un flag de feature ni algo para usar en código de
   producción.
+- En `zoom-automation/lib/zoom-browser.ts`, nunca confirmar un valor de
+  combobox con `fill()+press("Enter")` — queda visible pero no confirmado
+  en el estado interno, y un paso siguiente lo pisa con el default sin
+  error visible (pasó con `setStartTime`, reuniones reales quedaron a la
+  hora equivocada). Clickear la opción del dropdown, mismo patrón que
+  `setDuration`. Tampoco usar una clase CSS interna como selector si hay
+  alternativa por rol/nombre accesible — varios elementos no relacionados
+  de esa UI comparten clase (ver ARCHITECTURE.md para el detalle de ambos).
 
 ## Memoria de proyecto (fuera del repo)
 

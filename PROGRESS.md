@@ -1419,3 +1419,45 @@ y encontró dos problemas con capturas de pantalla.
   (autorizado, sesión Playwright aparte) e inspeccionar el DOM/valor en
   cada paso hasta encontrar el punto exacto donde diverge — no adivinar
   el selector/interacción a partir del mensaje de error solo.
+
+## 2026-09-13 (misma fecha, continuación) — Docs: README/ARCHITECTURE/AGENTS al día con Fase 5
+
+Ítem de `ROADMAP.md` ("Actualizar README/ARCHITECTURE/AGENTS como sistema
+autoritativo"), elegido por el usuario entre los tres pendientes de
+Fase 5 (los otros dos, `drift-check` y retirar el flujo manual, quedan
+sin tocar — el segundo por decisión explícita de la sesión anterior).
+
+- **`ARCHITECTURE.md`**: agregado un párrafo de Fase 5 (paralelo al de
+  Fase 4 que ya existía) dejando explícito que el cron de `reconcile` está
+  activo en producción y ya creó reuniones reales sin intervención manual,
+  pero que `/dashboard` sigue leyendo la tabla vieja `meetings` — las dos
+  conviven a propósito, no es un bug. Sumada la estructura de
+  `supabase/functions/` y `zoom-automation/` al árbol de carpetas (no
+  estaba, pese a ser ya una parte real y grande del sistema). Sumados dos
+  gotchas nuevos a la lista existente: el patrón `fill()+Enter` que no
+  confirma estado en combobox de Zoom (causa del bug de horario fijo) y
+  selectores por clase CSS ambigüos en esa misma UI (causa del bug del
+  chevron) — ambos ya estaban en `ZOOM_AUTOMATION.md`/este archivo, pero no
+  en la lista de gotchas que un dev leería antes de tocar código.
+- **`README.md`**: la nota sobre la automatización ya no dice "en
+  construcción" sin más — ahora aclara que está activa en producción
+  (cron real) pero todavía no reemplaza el flujo manual. Sumado
+  `zoom-automation/` al árbol de carpetas del repo (faltaba).
+- **`AGENTS.md`**: replicados los dos gotchas nuevos de arriba en la
+  sección de gotchas de este archivo (que ya se declara "repetido de
+  ARCHITECTURE.md, porque importan al codear").
+- **De paso, corregidos dos datos ya incorrectos en `ZOOM_AUTOMATION.md`**
+  (no era parte del pedido, pero quedaban activamente engañosos en el doc
+  que `AGENTS.md` señala como fuente de verdad de esta feature): una fecha
+  suelta "2026-09-25" que no correspondía a nada (la verificación real fue
+  2026-09-12, confirmado contra este mismo archivo y `ROADMAP.md`), y la
+  sección "Piezas" describía `zoom-apply-browser.yml` con "cron cada 10
+  minutos" y 2 secrets de sesión — ambos desactualizados desde Fase 5 (sin
+  `schedule:` a propósito, 13 secrets tras la recaptura). Reemplazada
+  también la sección "Pendiente para activar el cron desatendido" (dada
+  por completada, contradecía la decisión real de no activar `schedule:`)
+  por una nota de estado actual con referencia cruzada a "Jobs (Fase 5)".
+- Verificado `npm run lint` y `npm run build` en verde después de los
+  cambios (solo texto de `.md`, ningún archivo de código tocado — la
+  verificación es más por costumbre del repo que porque hubiera riesgo
+  real).

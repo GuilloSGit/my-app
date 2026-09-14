@@ -147,7 +147,12 @@ pg-boss. Cero hosting nuevo, cero costo nuevo.
   - **Duplicados con el flujo manual viejo — detectado, dejado así a propósito**: `/dashboard` (lo que usa la congregación) sigue leyendo de la tabla `meetings` vieja, no de `meeting_occurrences` — las reuniones de la automatización conviven en paralelo con las del flujo manual sin pisarlas. El corte (retirar `zoom-import-dialog`/`zoom-parser`, pasar `/dashboard` a `meeting_occurrences`) sigue siendo su propio ítem de Fase 5, más abajo, sin apurarlo.
 - [ ] `drift-check` reporta divergencias, nunca corrige solo — **sin diseñar todavía**, deliberadamente afuera de esta ronda: necesita leer el estado real de Zoom para comparar, y la API REST sigue bloqueada (Fase 2 pausada); la única vía viva es Playwright (`zoom-automation/`), que hoy solo crea/edita/cancela, no lista todo.
 - [ ] Retirar `zoom-import-dialog.tsx`/`lib/zoom-parser.ts` del flujo principal (fallback documentado un ciclo más antes de borrar)
-- [ ] Actualizar README/ARCHITECTURE/AGENTS como sistema autoritativo
+- [x] Actualizar README/ARCHITECTURE/AGENTS — **hecho 2026-09-13**, pero
+  parcial a propósito: documentan que el sistema está activo en producción
+  desde Fase 5, no que ya sea el único (`/dashboard` sigue en la tabla
+  vieja `meetings`, por decisión explícita de no retirar el flujo manual
+  todavía). Se vuelve a tocar cuando el ítem de arriba (retirar
+  `zoom-import-dialog`/`zoom-parser`) cierre. Ver PROGRESS.md.
 
 ---
 
