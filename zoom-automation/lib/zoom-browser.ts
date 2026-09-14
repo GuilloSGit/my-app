@@ -354,11 +354,39 @@ export class ZoomBrowserClient {
         return;
       }
       await deleteButton.click();
-      await page.getByLabel(eitherName("Delete Meeting", "Eliminar reunión")).getByRole("button", { name: deleteName }).click();
+
+      // Segundo bug real, encontrado 2026-09-14 después de arreglar el
+      // idioma: el diálogo de confirmación EN LA PÁGINA DE DETALLE no
+      // tiene aria-label ni aria-labelledby (verificado contra el DOM
+      // real que pegó el usuario — a diferencia del diálogo equivalente
+      // en la lista, que sí lo tiene). `getByLabel(...)` nunca encontraba
+      // nada, y el `.click()` encadenado sobre ese locator vacío no
+      // tiraba la excepción esperada — el job reportaba "OK" sin haber
+      // clickeado ningún botón real. Se ancla por rol "dialog" + el
+      // título real, visible como texto ("Eliminar reunión"/"Delete
+      // Meeting"), no por atributos de accesibilidad que este diálogo no
+      // tiene.
+      const confirmDialog = page.getByRole("dialog").filter({ hasText: eitherName("Delete Meeting", "Eliminar reunión") });
+      await confirmDialog.getByRole("button", { name: deleteName }).click();
       // Igual que en updateMeeting: sin esperar la navegación real post-
       // borrado, cerrar la página acá aborta la request a mitad de camino
       // y la reunión queda sin borrarse pese a que el click "funcionó".
       await page.waitForURL(/#\/upcoming/, { timeout: 15_000 });
+
+      // Verificación dura, nueva desde el incidente 2026-09-14: ya nos
+      // "mintió" una vez que un click sin excepción y una URL que cambia
+      // significaban éxito real. No alcanza — hay que confirmar contra el
+      // DOM real que la reunión ya no aparece en "Próximas" antes de
+      // darlo por bueno. El link "Iniciar" de cada fila apunta a
+      // `/s/{id}` en texto plano (sin agrupar en bloques de dígitos como
+      // el ID visible), más confiable que buscar el ID formateado.
+      await page.goto(`${BASE_URL}/meeting#/upcoming`);
+      const stillListed = page.locator(`a[href="/s/${zoomMeetingId}"]`);
+      if (await waitVisible(stillListed, 3000)) {
+        throw new Error(
+          `cancelMeeting(${zoomMeetingId}): se completó el flujo de borrado sin error, pero la reunión sigue apareciendo en "Próximas".`,
+        );
+      }
     } catch (e) {
       await this.screenshotOnFailure(page, "cancel");
       throw e;
