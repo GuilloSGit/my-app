@@ -64,21 +64,28 @@ pausada. Verificado de punta a punta contra la cuenta real. Detalle de los
 selectores/bugs encontrados en `ZOOM_AUTOMATION.md` y `PROGRESS.md`
 2026-09-12/13.
 
-**Fase 5 (2026-09-13): el sistema quedó activo en producción, aunque
-todavía no es el único.** `pg_cron` dispara `reconcile` cada 2 días (no
-diario) para cada `meeting_schedules` activo; si la corrida no es dry-run,
-`reconcile` dispara `zoom-apply-browser` fire-and-forget al terminar
-(mismo mecanismo que "Sincronizar ahora", llamado directo — sin pasar por
-la Edge Function gateada para JWT de browser). Esto ya creó reuniones de
-Zoom reales sin intervención manual. **Pero `/dashboard` (lo que usa la
-congregación) sigue leyendo de la tabla vieja `meetings`, no de
-`meeting_occurrences`** — las dos conviven en paralelo a propósito
-(decisión del usuario 2026-09-13, para no improvisar el corte); retirar
-`zoom-import-dialog.tsx`/`lib/zoom-parser.ts` y pasar `/dashboard` a
-`meeting_occurrences` sigue siendo el ítem pendiente de Fase 5 que hace de
-este sistema el autoritativo. Hasta que eso pase, cualquier cambio a
-`lib/meetings.ts` o al flujo manual de Zoom sigue siendo real y necesario
-— no es código muerto.
+**Fase 5 (2026-09-13, cutover real 2026-09-17): el sistema es ahora el
+autoritativo.** `pg_cron` dispara `reconcile` **cada 10hs** (bajado desde
+"cada 2 días" el 2026-09-17, ver Gotchas — el repo es público, así que los
+minutos de GitHub Actions que dispara son gratis sin límite) para cada
+`meeting_schedules` activo; si la corrida no es dry-run, `reconcile`
+dispara `zoom-apply-browser` fire-and-forget al terminar (mismo mecanismo
+que "Sincronizar ahora", llamado directo — sin pasar por la Edge Function
+gateada para JWT de browser).
+
+**`/dashboard` (lo que usa toda la congregación) pasó a leer
+`meeting_occurrences`/`lib/automation.ts` en vez de la tabla vieja
+`meetings`** (2026-09-17) — `components/occurrence-meeting-card.tsx` (solo
+lectura, reusa `OccurrenceWhatsAppShare`) reemplaza a `MeetingCard` en esa
+página, filtrando a `status==='synced'` con el mismo margen de 2h
+post-inicio que ya usaba `getUpcomingMeetings`. Los botones de admin del
+flujo manual (Nueva Reunión/Importar CSV/Pegar desde Zoom) se sacaron de
+`/dashboard` — la gestión de admin es 100% `/dashboard/automatizacion`
+desde ahora. `lib/meetings.ts`/`lib/zoom-parser.ts`/
+`components/{meeting-form,csv-import,zoom-import-dialog}.tsx` **no se
+borraron** (fallback documentado, ver ROADMAP.md), pero ya no están
+enganchados a ninguna UI — no asumir que siguen siendo el camino real para
+nada nuevo.
 
 ## Estructura de carpetas
 
@@ -96,11 +103,16 @@ components/
   navbar.tsx             Nav + logout + theme toggle
   theme-provider.tsx     Wrapper de next-themes (attribute="class", defaultTheme="system")
   theme-toggle.tsx       Botón light/dark (usa resolvedTheme, no theme — ver Gotchas)
-  meeting-card.tsx       Card de una reunión: expand, editar, eliminar, compartir
-  meeting-form.tsx       Form de alta/edición (validado con lib/meetings.validateMeeting)
-  whatsapp-share.tsx     Compartir por WhatsApp: un botón, envío directo (sin editor)
-  csv-import.tsx         Alta masiva de reuniones desde CSV (papaparse)
-  zoom-import-dialog.tsx Pegar una invitación de Zoom y parsearla (lib/zoom-parser)
+  occurrence-meeting-card.tsx  Card de solo lectura para /dashboard (meeting_occurrences,
+                        reusa OccurrenceWhatsAppShare) — reemplaza a MeetingCard ahí
+  meeting-card.tsx       Card del flujo manual viejo: expand, editar, eliminar, compartir
+                        (sin uso real desde 2026-09-17, fallback — ver ROADMAP.md)
+  meeting-form.tsx       Form de alta/edición del flujo manual (fallback, sin uso real)
+  whatsapp-share.tsx     Compartir por WhatsApp del flujo manual (fallback, sin uso real)
+  occurrence-whatsapp-share.tsx  Compartir por WhatsApp real (buildOccurrenceShareMessage,
+                        agenda de WOL sin URLs) — usado en /dashboard y /dashboard/automatizacion
+  csv-import.tsx         Alta masiva de reuniones desde CSV (fallback, sin uso real)
+  zoom-import-dialog.tsx Pegar una invitación de Zoom y parsearla (fallback, sin uso real)
   service-worker-register.tsx  Registra el SW solo en prod, lo desregistra en dev
   copy-button.tsx, tooltip.tsx, calendar-logo.tsx, contact-buttons.tsx  UI de soporte
 
@@ -109,35 +121,66 @@ lib/
   auth.ts                Hook useAuth: sesión + sendMagicLink + logout
   admin.ts                isAdmin(user) contra NEXT_PUBLIC_ADMIN_EMAIL
   authorized-emails.ts    isAuthorizedEmail(email) contra NEXT_PUBLIC_AUTHORIZED_EMAILS
-  meetings.ts             CRUD de reuniones + validateMeeting + formatMeetingDate/Time
-  zoom-parser.ts          Parsea el texto de invitación de Zoom (regex, es-AR)
+  meetings.ts             CRUD de reuniones sobre la tabla vieja `meetings` (fallback,
+                          sin uso real desde 2026-09-17) + formatMeetingDate/Time,
+                          reusado por el sistema real (buildOccurrenceShareMessage, etc.)
+  zoom-parser.ts          Parsea el texto de invitación de Zoom (fallback, sin uso real)
+  automation.ts           Fuente real de /dashboard y /dashboard/automatizacion —
+                          meeting_schedules/meeting_occurrences/reconcile_runs/
+                          zoom_session_checks, buildOccurrenceShareMessage (WhatsApp
+                          con agenda real de WOL, sin URLs), triggerZoomSync,
+                          triggerZoomSessionCheck, writeSchedule, occurrenceAction, etc.
 
 __tests__/                Vitest: unit, integration, components (RTL)
 e2e/                       Playwright: specs + helpers/mock-supabase.ts
 .github/workflows/deploy.yml   CI: test → build → deploy
 
 supabase/functions/        Edge Functions (Deno) de la automatización de Zoom
-  reconcile                 Cron (pg_cron, cada 2 días): escanea 1 mes, encola
-                             zoom_outbox, dispara zoom-apply-browser al terminar
+  reconcile                 Cron (pg_cron, cada 10hs): escanea 1 mes, trae
+                             contenido real de WOL, encola zoom_outbox, dispara
+                             zoom-apply-browser al terminar
   zoom-apply                Cliente Zoom vía API REST (Fase 2, dormido — ver
                              ARCHITECTURE.md arriba y ZOOM_AUTOMATION.md)
   zoom-apply-dispatch        Dispara zoom-apply-browser.yml vía API de GitHub
                              (botón "Sincronizar ahora", gate requireAdmin)
+  zoom-session-check-dispatch  Dispara zoom-session-check.yml vía API de GitHub
+                             (botón "Verificar sesión de Zoom", gate requireAdmin)
   exception-create, occurrence-action, schedule-write   Escrituras del admin
-                             (gate requireAdmin), UI en components/*-dialog.tsx
-  _shared/reconciler/        Lógica pura: expand, diff, parser WOL, topic
+                             (gate requireAdmin), UI en components/*-dialog.tsx.
+                             **schedule-write NO trae contenido de WOL** — una
+                             ocurrencia nueva creada desde el editor de horario
+                             queda con `agenda: null` hasta que `reconcile`
+                             vuelva a correr sobre esa semana (máx. 10hs).
+  _shared/reconciler/        Lógica pura: expand, diff, parser WOL (wol.ts,
+                             incluye parseTreasuresTitle/parseWeekendTheme),
+                             buildAgenda (por kind, sin URLs), topic
   _shared/zoom/               Cliente Zoom (Fase 2, dormido)
   _shared/admin-auth.ts        requireAdmin(jwt) — valida sesión + ADMIN_EMAILS
-  _shared/github/              Dispatch de workflows de GitHub Actions
+  _shared/github/dispatch-workflow.ts   dispatchWorkflow(config, workflowFile)
+                             genérico — dispatchZoomApplyWorkflow es un wrapper
+                             de compatibilidad sobre él
 
 zoom-automation/            Script standalone (Node + Playwright, fuera de
                              Next/Deno) que reemplaza a zoom-apply (Fase 2-bis)
   capture-session.ts          Captura de sesión a mano (nunca en CI)
+  upload-session.ts            Sube la sesión recapturada a los 13 secrets de
+                               GitHub (`npm run zoom:upload-session`) — evita
+                               repetir a mano el base64+split+gh secret set
   apply.ts                    Loop dequeue → ZoomBrowserClient → complete
-  lib/zoom-browser.ts          ZoomBrowserClient: create/update/cancelMeeting
+                               (el 'update' pasa el passcode fijo a completeJob,
+                               si no la base nunca se entera del valor real)
+  check-session.ts             Chequeo liviano (sin tocar el outbox): navega y
+                               guarda el resultado en zoom_session_checks
+  debug-cancel.ts, debug-cancel-batch.ts   Herramientas de diagnóstico/limpieza
+                               puntual contra la cuenta real (cancelar una o
+                               varias reuniones a mano), guardadas a propósito
+  lib/zoom-browser.ts          ZoomBrowserClient: create/update/cancelMeeting.
+                               Fuerza el mismo passcode fijo (FIXED_PASSCODE)
+                               en toda reunión — ver Gotchas
   lib/outbox.ts                Mismo contrato RPC que usa zoom-apply
 .github/workflows/zoom-apply-browser.yml   Sin schedule: propio a propósito,
                              solo workflow_dispatch (ver Fase 5 arriba)
+.github/workflows/zoom-session-check.yml   Ídem, para el chequeo de sesión
 ```
 
 ## Modelo de datos
@@ -297,6 +340,33 @@ sección `## Tests`):
   accesible por rol/nombre (`page.getByRole("button", { name:
   "Next month" })`) en vez de una clase CSS interna — mismo patrón que ya
   usa el resto de `zoom-browser.ts`. Ver PROGRESS.md 2026-09-13.
+- **El campo "Add Description" de una reunión de Zoom no se muestra en
+  ningún lado útil de la cuenta** (verificado creando una reunión de
+  prueba real con agenda "Domicilio: Casa de Lorenzo Munizaga" y mirando
+  el detalle). El enriquecimiento real de contenido (WOL: "Tesoros de la
+  Biblia" + "TEMA" de La Atalaya) va **solo** al mensaje de WhatsApp
+  (`buildOccurrenceShareMessage`, `lib/automation.ts`), nunca al campo de
+  Zoom — no volver a intentar meter contenido ahí sin recordar esto.
+- **`zoom-browser.ts`: `press("Control+A")` NO selecciona todo el texto de
+  un input en Mac** (hace falta `Meta+A`) — un intento de "limpiar antes
+  de tipear" con `Control+A`+`Backspace` dejó una clave vieja mezclada con
+  la nueva ("0019001914") en vez de reemplazarla, y encima bloqueó el
+  botón "Save" (formato inválido). Si hace falta seleccionar todo el
+  contenido de un campo antes de tipear, usar `locator.selectText()` de
+  Playwright (multiplataforma), no un atajo de teclado. Un `.fill()`
+  simple sobre el campo de Passcode sí funciona bien (confirmado releyendo
+  "Copy Invitation" desde una sesión aparte) — no todos los campos de esta
+  UI tienen el bug de `setStartTime` de abajo.
+- **`apply.ts` tiene que pasar explícitamente cada campo que cambió a
+  `completeJob`, incluido `passcode`, en la acción `'update'`** —
+  `complete_zoom_job` hace `coalesce(p_passcode, passcode viejo)`, así que
+  omitirlo dejaba Zoom bien pero `meeting_occurrences.passcode` con el
+  valor viejo para siempre (encontrado 2026-09-17: el dashboard mostraba
+  una clave vieja pese a que la reunión real ya tenía la fija).
+- **Todas las reuniones creadas/editadas por `zoom-browser.ts` fuerzan la
+  misma clave (`ZoomBrowserClient.FIXED_PASSCODE`, "001914")** — a pedido
+  explícito del usuario, no es opcional. No dejar que Zoom genere una
+  clave al azar sin pisarla.
 - **Nunca prefijar `NEXT_PUBLIC_` a una clave `service_role` u otro secreto
   real.** Cualquier variable `NEXT_PUBLIC_*` se inlinea en el bundle del
   cliente en `next build` — con `output: 'export'` eso significa que queda

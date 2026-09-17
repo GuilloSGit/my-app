@@ -39,7 +39,9 @@ npx tsc --noEmit           # chequeo de tipos sin build completo
 
 # Automatización de Zoom por navegador (Fase 2-bis, ver ARCHITECTURE.md/ZOOM_AUTOMATION.md)
 npm run zoom:capture-session   # captura la sesión de Zoom a mano (correr localmente, nunca en CI)
+npm run zoom:upload-session    # sube la sesión recapturada a los 13 secrets de GitHub (evita hacerlo a mano)
 npm run zoom:apply             # drena zoom_outbox contra Zoom real vía Playwright (ZOOM_HEADFUL=1 para ver el navegador)
+npm run zoom:check-session     # chequeo liviano de sesión (mismo que dispara el botón "Verificar sesión de Zoom")
 npx tsc --noEmit -p zoom-automation/tsconfig.json   # typecheck de zoom-automation/ (excluido del tsconfig raíz)
 ```
 
@@ -70,8 +72,13 @@ pantalla.
 
 - Componentes con `"use client"` explícito donde corresponde (casi todo
   tiene estado/efectos — no hay Server Components reales en uso).
-- CRUD de reuniones siempre pasa por `lib/meetings.ts` (no llamar a
-  `supabase.from("meetings")` directo desde un componente).
+- **`/dashboard` y `/dashboard/automatizacion` leen `meeting_occurrences`
+  vía `lib/automation.ts`** (no `lib/meetings.ts`/tabla `meetings` — eso es
+  el flujo manual viejo, fallback sin uso real desde 2026-09-17, ver
+  ARCHITECTURE.md). No agregar UI nueva que dependa de `lib/meetings.ts`
+  sin confirmar antes que realmente hace falta el flujo manual.
+- CRUD del flujo manual (fallback) sigue pasando por `lib/meetings.ts` (no
+  llamar a `supabase.from("meetings")` directo desde un componente).
 - Cualquier chequeo de acceso (`isAuthorizedEmail`, `isAdmin`) es un gate de
   **UX**, no de seguridad — la seguridad real son las RLS policies de
   Supabase (ver `ARCHITECTURE.md`).
@@ -108,6 +115,15 @@ pantalla.
   `setDuration`. Tampoco usar una clase CSS interna como selector si hay
   alternativa por rol/nombre accesible — varios elementos no relacionados
   de esa UI comparten clase (ver ARCHITECTURE.md para el detalle de ambos).
+- Para seleccionar todo el texto de un input antes de tipear, usar
+  `locator.selectText()` de Playwright — `press("Control+A")` no
+  selecciona todo en Mac (hace falta `Meta+A`) y puede mezclar el valor
+  viejo con el nuevo en vez de reemplazarlo (ver ARCHITECTURE.md).
+- Toda acción de `apply.ts` que llame a `completeJob` tiene que pasar
+  explícitamente todos los campos que cambiaron (incluido `passcode` en
+  `'update'`) — `complete_zoom_job` hace `coalesce(valor nuevo, valor
+  viejo)`, así que omitir un campo dejaba Zoom bien pero la base con el
+  valor viejo para siempre.
 
 ## Memoria de proyecto (fuera del repo)
 

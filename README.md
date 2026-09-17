@@ -152,13 +152,24 @@ Los tests cubren:
 - `__tests__/components/login.test.tsx` — login con clicks reales (React Testing
   Library): email no autorizado, email autorizado, error de Supabase, redirect
   si ya hay sesión
-- `__tests__/components/dashboard-meetings.test.tsx` — CRUD de reuniones desde
-  la UI (crear/editar/eliminar, camino feliz y bordes) y control de acceso
-  admin/no-admin
+- `__tests__/components/dashboard-meetings.test.tsx` — `/dashboard` sobre
+  `meeting_occurrences` (mock de `lib/automation`, no de `lib/meetings`
+  desde 2026-09-17): admin/no-admin ven la misma lista de reuniones
+  sincronizadas, filtrado por status, y el botón de WhatsApp arma el
+  mensaje con la agenda real
+- `__tests__/components/automatizacion-page.test.tsx` — vista de mes del
+  admin (`/dashboard/automatizacion`): control de acceso, schedules/
+  ocurrencias/última corrida
 - `e2e/login.spec.ts` y `e2e/dashboard.spec.ts` — los mismos flujos, pero en un
   navegador real contra el dev server. `e2e/helpers/mock-supabase.ts` inyecta
-  un Supabase falso en `window` (ver el seam en `lib/supabase.ts`) para no
-  depender ni pegarle nunca al proyecto real.
+  un Supabase falso en `window` (ver el seam en `lib/supabase.ts`, ahora con
+  soporte multi-tabla — `meetings` y `meeting_occurrences`) para no depender
+  ni pegarle nunca al proyecto real.
+- `__tests__/lib/automation.test.ts`, `__tests__/reconciler/*.test.ts`,
+  `__tests__/shared/dispatch-workflow.test.ts` — lógica de la
+  automatización de Zoom (reconciliador, parser de WOL, dispatch de
+  workflows de GitHub). Ver `ZOOM_AUTOMATION.md`/`AGENTS.md` para el
+  detalle de esa parte del sistema.
 
 **El deploy está gateado por los tests**: en `.github/workflows/deploy.yml`, el
 job `build` (y por lo tanto `deploy`) tiene `needs: test`. Si `npm run test:run`
@@ -210,13 +221,17 @@ my-app/
 └── playwright.config.ts
 ```
 
-> **Automatización de reuniones Zoom**: activa en producción (cron cada 2
-> días crea/actualiza/cancela reuniones reales de Zoom sin intervención
-> manual), pero **todavía no reemplaza** el flujo manual de arriba —
-> `/dashboard` sigue leyendo de la tabla `meetings` vieja, las dos
-> conviven en paralelo a propósito. Panel de solo-admin en
-> `/dashboard/automatizacion`. Ver `ZOOM_AUTOMATION.md` (spec y
-> arquitectura), `ROADMAP.md` (fases) y `PROGRESS.md` (bitácora).
+> **Automatización de reuniones Zoom**: activa en producción y es el
+> sistema real desde el 2026-09-17 — cron cada 10hs crea/actualiza/cancela
+> reuniones reales de Zoom sin intervención manual, y `/dashboard` (lo que
+> ve toda la congregación) lee esas reuniones directamente, con agenda
+> real de wol.jw.org en el mensaje de WhatsApp. El flujo manual descripto
+> en "Características" arriba (Importar desde Zoom, Importar CSV, editar/
+> eliminar a mano) queda como fallback sin uso real, sin borrar. Panel de
+> admin de la automatización en `/dashboard/automatizacion` (editor de
+> horario, excepciones, verificación de sesión de Zoom). Ver
+> `ZOOM_AUTOMATION.md` (spec y arquitectura), `ROADMAP.md` (fases) y
+> `PROGRESS.md` (bitácora).
 
 ## Deploy
 
