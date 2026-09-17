@@ -43,12 +43,24 @@ function validationError(body: Body): string | null {
   if (typeof body.localTime !== "string" || !/^\d{2}:\d{2}(:\d{2})?$/.test(body.localTime)) {
     return "localTime debe tener formato HH:mm o HH:mm:ss";
   }
+  // El dropdown de horarios de Zoom (zoom-automation/lib/zoom-browser.ts)
+  // solo ofrece opciones cada 15 minutos -- un localTime fuera de esa
+  // grilla cuelga la automatización más adelante buscando una opción que
+  // no existe (ver PROGRESS.md 2026-09-17, caso real con duration_minutes:
+  // 140). Se corta acá, en el único punto de entrada de escritura, en vez
+  // de descubrirlo recién en el navegador automatizado.
+  if (Number(body.localTime.slice(3, 5)) % 15 !== 0) {
+    return "localTime debe caer en un múltiplo de 15 minutos (Zoom solo permite :00, :15, :30, :45)";
+  }
   if (
     typeof body.durationMinutes !== "number" ||
     !Number.isInteger(body.durationMinutes) ||
     body.durationMinutes <= 0
   ) {
     return "durationMinutes debe ser un entero positivo";
+  }
+  if (body.durationMinutes % 15 !== 0) {
+    return "durationMinutes debe ser múltiplo de 15 (el dropdown de duración de Zoom solo permite 0/15/30/45 minutos)";
   }
   return null;
 }

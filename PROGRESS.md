@@ -1566,3 +1566,11 @@ problema" la próxima vez que la sesión de Zoom se venza sin aviso):
   cambiado a `"node10"`, `tsc --noEmit` queda sin warnings.
 
 Todo commiteado y pusheado a `master` (`e5f8d60`, `3b47ef2`).
+
+## 2026-09-17 (continuación) — Validación de "múltiplo de 15 minutos" en las tres capas: editor de horario, `schedule-write` y `setStartTime`
+
+Retoma el pendiente anotado en la sesión anterior del mismo día ("`duration_minutes: 140` rompía `setDuration` en cadena... si se retoma este punto, agregar validación (múltiplo de 15) es la mejora real"). El motivo de fondo es el mismo en los tres puntos: los dropdowns de Zoom (hora de inicio y minutos de duración) solo ofrecen opciones cada 15 minutos — cualquier valor que no caiga en esa grilla cuelga la automatización con Playwright buscando una `option` que no existe, en vez de fallar con un mensaje claro.
+
+- **`supabase/functions/schedule-write/index.ts` (`validationError`)** — punto de entrada único de escritura del editor de horario: ahora rechaza con `400` tanto `localTime` como `durationMinutes` que no sean múltiplo de 15. Es el fix real (corta el dato inválido antes de que llegue a `meeting_schedules`), no solo un parche defensivo más adelante. `deno check` verificado sin errores.
+- **`components/schedule-editor-dialog.tsx`** — `step={900}` (segundos) en el input de hora y `min={15} step={15}` en el de duración, para que el picker nativo del navegador ya sugiera la grilla correcta; el error real sigue viniendo del servidor (el `step` del input HTML no impide tipear un valor fuera de grilla a mano en todos los navegadores).
+- **`zoom-automation/lib/zoom-browser.ts` (`setStartTime` y `setDuration`)** — capa de defensa adicional, para cualquier valor que llegue por otro camino que no sea el editor (ej. `origin='manual'` desde otras acciones, o datos ya cargados antes de este fix): ambos validan su valor antes de tocar la UI de Zoom y tiran un error explícito en vez del timeout genérico de Playwright de antes. `setDuration` es la reproducción exacta y el fix real del incidente `duration_minutes: 140` de la sesión anterior (el combobox de minutos solo tiene 0/15/30/45; 140 min → 2h20 buscaba la opción "20", inexistente). `tsc --noEmit` verificado sin errores en `zoom-automation/`.

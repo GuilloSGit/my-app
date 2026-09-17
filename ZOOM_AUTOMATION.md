@@ -406,6 +406,17 @@ reuniones reales del cron, no reuniones de prueba:
   `page.getByRole("button", { name: "Next month" })` (accesible por rol,
   no por clase interna). Ver PROGRESS.md 2026-09-13.
 
+`setStartTime` asume además que `startsAt` cae en un múltiplo de 15
+minutos, porque el dropdown de Zoom solo ofrece horarios ("17:00",
+"17:15", ...) en esa grilla — un horario que no calza ahí genera un label
+sin `option` correspondiente. Lo mismo aplica a `setDuration` con los
+minutos de duración (el combobox solo tiene 0/15/30/45). **Validado
+explícitamente 2026-09-17**: ambos tiran un error claro antes de tocar la
+UI si el valor no cae en esa grilla, en vez del timeout genérico de
+Playwright de antes. La validación real (que corta el dato antes de
+llegar acá) vive en `schedule-write` — ver sección "Interfaz" más abajo.
+Ver PROGRESS.md 2026-09-17.
+
 ### Sesión y cron: estado actual (Fase 5)
 
 La sesión capturada expira sin aviso previo de Zoom — pasó una vez en
@@ -671,6 +682,15 @@ job reintenta.
   `agenda` real de la fila (releyéndola con `returning`, nunca recibiéndola
   como parámetro), si no cualquier cambio de horario borraría la agenda ya
   sincronizada de Zoom. Ver PROGRESS.md 2026-09-13 para el detalle.
+  **Validación de múltiplo de 15 minutos agregada 2026-09-17**:
+  `validationError` en `schedule-write/index.ts` rechaza con `400` un
+  `localTime` o `durationMinutes` que no caigan en un múltiplo de 15 —
+  cierra el pendiente que había quedado del incidente real
+  `duration_minutes: 140` (ver PROGRESS.md 2026-09-17, misma fecha,
+  sesión anterior). Es el único punto de entrada de escritura del editor,
+  así que corta el dato inválido ahí; `components/schedule-editor-dialog.tsx`
+  solo suma `step`/`min` en los inputs como ayuda visual, no reemplaza esta
+  validación server-side.
 - **`reconcile_runs.finished_at` siempre visible — implementado**, aunque
   no haya nada pendiente (mismo entregable que la vista de mes) — un
   tablero que dice "todo bien" y uno con "última corrida hace 9 días" se

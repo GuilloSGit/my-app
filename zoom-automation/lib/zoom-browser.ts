@@ -182,6 +182,19 @@ export class ZoomBrowserClient {
   }
 
   private async setStartTime(page: Page, date: Date, timezone: string): Promise<void> {
+    // El dropdown de Zoom solo ofrece horarios cada 15 minutos (ver
+    // `zoomTimeOptionLabel`). Un `startsAt` que caiga fuera de esa grilla
+    // (ej. "17:07") genera un label que no matchea ninguna `option` real:
+    // sin este chequeo, `getByRole("option", { exact: true })` más abajo
+    // tira un timeout de Playwright genérico en vez de decir cuál es el
+    // problema real.
+    const minute = new Intl.DateTimeFormat("en-GB", { minute: "2-digit", timeZone: timezone }).format(date);
+    if (Number(minute) % 15 !== 0) {
+      throw new Error(
+        `Horario inválido para Zoom: "${zoomTimeOptionLabel(date, timezone)}" no cae en un múltiplo de 15 minutos (Zoom solo permite :00, :15, :30, :45).`,
+      );
+    }
+
     const label = zoomTimeOptionLabel(date, timezone);
     // `fill()` + `press("Enter")` deja el valor correcto VISIBLE en el
     // input, pero no lo confirma en el estado interno de la app: apenas
@@ -205,6 +218,17 @@ export class ZoomBrowserClient {
   private async setDuration(page: Page, durationMinutes: number): Promise<void> {
     const hours = Math.floor(durationMinutes / 60);
     const minutes = durationMinutes % 60;
+
+    // Mismo problema que `setStartTime`: el combobox de minutos de Zoom
+    // solo ofrece 0/15/30/45 — un `durationMinutes` como 140 (2h20) busca
+    // la opción "20", que no existe, y cuelga con un timeout genérico.
+    // Causa real de un incidente en producción (ver PROGRESS.md
+    // 2026-09-17, "duration_minutes: 140 rompía setDuration en cadena").
+    if (minutes % 15 !== 0) {
+      throw new Error(
+        `Duración inválida para Zoom: ${durationMinutes} minutos no cae en un múltiplo de 15 (Zoom solo permite :00, :15, :30, :45 dentro de cada hora).`,
+      );
+    }
 
     // "seleccionar horas/minutos de duración" sin confirmar contra el DOM
     // real todavía.

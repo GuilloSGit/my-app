@@ -134,10 +134,14 @@ export function ScheduleEditorDialog({ schedule, onClose, onSaved }: ScheduleEdi
                     </label>
                     <input
                       type="time"
+                      step={900}
                       value={localTime}
                       onChange={(e) => setLocalTime(e.target.value)}
                       className="w-full p-2.5 rounded-lg border bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border-slate-300 dark:border-zinc-700 focus:ring-2 focus:ring-media-agua focus:border-media-agua outline-none"
                     />
+                    <p className="mt-1 text-xs text-slate-500 dark:text-zinc-500">
+                      Múltiplo de 15 min (Zoom no permite otros valores)
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
@@ -145,7 +149,8 @@ export function ScheduleEditorDialog({ schedule, onClose, onSaved }: ScheduleEdi
                     </label>
                     <input
                       type="number"
-                      min={1}
+                      min={15}
+                      step={15}
                       value={durationMinutes}
                       onChange={(e) => setDurationMinutes(Number(e.target.value))}
                       className="w-full p-2.5 rounded-lg border bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 border-slate-300 dark:border-zinc-700 focus:ring-2 focus:ring-media-agua focus:border-media-agua outline-none"
