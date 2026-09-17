@@ -1461,3 +1461,108 @@ sin tocar — el segundo por decisión explícita de la sesión anterior).
   cambios (solo texto de `.md`, ningún archivo de código tocado — la
   verificación es más por costumbre del repo que porque hubiera riesgo
   real).
+
+## 2026-09-17 — Incidente de `cancelMeeting` (2026-09-14) resuelto de punta a punta
+
+**Causa real de la 4ª falla, la que quedó sin diagnosticar el 2026-09-14**:
+la sesión local de Playwright estaba vencida (aterrizaba en el login) —
+confirmado con `ZOOM_HEADFUL=1 ZOOM_DEBUG_PAUSE=1 npx tsx
+zoom-automation/debug-cancel.ts` corrido por el usuario en una terminal
+real. Se recapturó la sesión (`npm run zoom:capture-session`) y se
+verificó el ciclo completo cancelando de verdad, una por una con
+confirmación visual, las 9 reuniones reales que habían quedado colgadas
+del incidente (85959338220 y las 8 restantes) — las 9 pasaron la
+verificación dura interna de `cancelMeeting` (revisa la lista real
+"Próximas", no solo ausencia de excepción).
+
+- Sumados `zoom-automation/debug-cancel.ts` (una reunión) y
+  `debug-cancel-batch.ts` (varias en cadena, misma sesión de browser) como
+  herramientas reusables para la próxima vez que haga falta diagnosticar
+  o limpiar reuniones de prueba — a pedido explícito del usuario, no se
+  borran.
+- **La sesión de CI (los 13 `ZOOM_SESSION_STATE_B64_N` de GitHub) también
+  estaba vieja** (misma edad que la que resultó vencida) — se resubió
+  reusando el archivo local recién recapturado (sin loguearse una segunda
+  vez). Verificado de punta a punta con un job real de `create` + `cancel`
+  encolado a mano en `zoom_outbox` y corrido vía `zoom-apply-browser.yml`
+  en CI: reunión real creada (ID 81273228199) y cancelada, ambas
+  confirmadas contra Zoom real.
+- Filas de prueba (`meeting_occurrences`/`zoom_outbox`) limpiadas después
+  de cada prueba — no quedó nada de test en producción.
+
+## 2026-09-17 (misma fecha, continuación) — `/dashboard` pasa a `meeting_occurrences`
+
+Ítem pendiente de Fase 5 cerrado. Detalle en `ROADMAP.md`. Resumen: `app/dashboard/page.tsx`
+ahora lee `getUpcomingOccurrences()` (`status==='synced'`, mismo margen de
+2h post-inicio que ya usaba `getUpcomingMeetings`) con una card nueva de
+solo lectura (`components/occurrence-meeting-card.tsx`, reusa
+`OccurrenceWhatsAppShare`). Se sacaron de esta página los botones del
+flujo manual viejo (Nueva Reunión/Importar CSV/Pegar desde Zoom) — el
+código (`lib/meetings.ts`, `lib/zoom-parser.ts`, `meeting-form.tsx`,
+`csv-import.tsx`, `zoom-import-dialog.tsx`) queda intacto como fallback
+documentado, sin borrar. `e2e/helpers/mock-supabase.ts` generalizado a
+multi-tabla (antes solo mockeaba `meetings`) para poder testear esto.
+
+## 2026-09-17 (continuación) — Mensaje de WhatsApp: "Tesoros de la Biblia" real + "TEMA" de La Atalaya, sin URLs
+
+A pedido del usuario: el enriquecimiento de wol.jw.org en el mensaje de
+WhatsApp (no en el campo "Add Description" de Zoom — confirmado que ese
+campo ni siquiera se muestra en la UI de Zoom, verificado en la prueba de
+la reunión "TEST - creación" con agenda "Domicilio: Casa de Lorenzo
+Munizaga") no debía traer URLs ni direcciones sueltas.
+
+- `wol.ts`: nuevos parsers `parseTreasuresTitle` (título real del punto 1
+  de "Tesoros de la Biblia", entresemana — ej. "Jehová recompensa a los
+  que siempre le obedecen", sacado del mismo fetch que ya se hacía para
+  `bibleReading`, sin fetch extra) y `parseWeekendTheme` (caja "TEMA" del
+  artículo de estudio, fin de semana — nuevo 2º fetch a `item.url`, mismo
+  criterio best-effort que `bibleReading`). Ambos verificados contra los
+  fixtures reales ya existentes en el repo.
+- `buildAgenda` (`reconcile.ts`) ahora recibe `kind` y arma contenido
+  distinto por tipo, **sin URL en ningún caso**: entresemana es
+  "Tesoros de la Biblia: {título}" + "Lectura de la Biblia: {cita}" (cae al
+  título genérico si el scrape nuevo falla); fin de semana es título +
+  tema + edición.
+- `wol_week_cache`: columnas nuevas `midweek_treasures_title`/
+  `weekend_theme` (migración `20260917190000`).
+- `lib/automation.ts`: `buildOccurrenceShareMessage` usa un título corto
+  por `scheduleKind` ("Reunión de entresemana"/"Reunión de fin de semana",
+  sin fecha — `occurrence.topic` no cambia en el resto de la UI) y `>` en
+  vez de `->`. `stripLinksFromAgenda` queda como defensa en profundidad.
+- Deployado: `supabase db push` + `supabase functions deploy reconcile
+  --use-api`. Verificado con un script descartable que arma los dos
+  mensajes reales (entresemana/fin de semana) contra los fixtures —
+  coinciden exactamente con lo pedido.
+
+## 2026-09-17 (continuación) — Botón "Verificar sesión de Zoom" + `zoom:upload-session`
+
+A pedido del usuario ("que no tenga obstáculo de arrancar y trabajar sin
+problema" la próxima vez que la sesión de Zoom se venza sin aviso):
+
+- `zoom-automation/check-session.ts` (nuevo): chequeo liviano, headless,
+  sin tocar ningún job del outbox — navega a `#/upcoming` y decide
+  viva/vencida mirando si aparece el botón de agendar o si redirigió a
+  `/signin`. Escribe el resultado en la tabla nueva `zoom_session_checks`
+  (migración `20260917200000`).
+- `.github/workflows/zoom-session-check.yml` (nuevo): mismo mecanismo de
+  restaurar sesión que `zoom-apply-browser.yml`, sin `schedule:`, a
+  demanda. Verificado con `gh workflow run` real: `ok=true`, fila
+  guardada.
+- `_shared/github/dispatch-workflow.ts` generalizado a `dispatchWorkflow`
+  (antes solo servía para `zoom-apply-browser.yml`); nueva Edge Function
+  `zoom-session-check-dispatch` (admin-gated, mismo patrón que
+  `zoom-apply-dispatch`). Redeployadas ambas Edge Functions.
+- `/dashboard/automatizacion`: botón "Verificar sesión de Zoom" al lado de
+  "Sincronizar ahora", con línea de estado ("OK (verificado hace N min)" /
+  "VENCIDA — hay que recapturarla...").
+- **`npm run zoom:upload-session`** (nuevo): automatiza la parte tediosa
+  de recapturar (base64 + partir en 13 pedazos + `gh secret set` uno por
+  uno, hecho a mano un rato antes en esta misma sesión) — el valor nunca
+  pasa por argumento de proceso, solo por stdin. El login en sí sigue
+  siendo 100% manual, a propósito (riesgo de CAPTCHA en cuenta gestionada
+  por organización).
+- Gotcha de paso: `zoom-automation/tsconfig.json` tenía
+  `moduleResolution: "node"` (alias viejo, deprecado desde TS 5.x) —
+  cambiado a `"node10"`, `tsc --noEmit` queda sin warnings.
+
+Todo commiteado y pusheado a `master` (`e5f8d60`, `3b47ef2`).
