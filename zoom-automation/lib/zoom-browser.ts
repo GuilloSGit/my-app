@@ -250,8 +250,18 @@ export class ZoomBrowserClient {
   // compartir la misma clave, no es opcional (antes quedaba lo que Zoom
   // generara solo — "597298", "231299", etc., distinto en cada reunión,
   // confirmado en capturas reales). El campo ya viene con "Passcode"
-  // tildado y un valor generado por Zoom — alcanza con pisarlo.
-  private static readonly FIXED_PASSCODE = "001914";
+  // tildado y un valor generado por Zoom — alcanza con pisarlo con
+  // `.fill()`. Verificado contra la cuenta real (2026-09-17, releyendo
+  // "Copy Invitation" desde una sesión de browser aparte, no solo
+  // confiando en que el job no tirara error): sí se confirma en el
+  // estado interno de Zoom. **Ojo**: un intento de "arreglar" esto con
+  // `Control+A` + `Backspace` + tipeo se descartó — `Control+A` no
+  // selecciona todo en Mac (hace falta `Meta+A`), y terminó mezclando la
+  // clave vieja con la nueva en vez de reemplazarla. `.fill()` simple ya
+  // andaba bien; el bug real que hizo pensar lo contrario estaba en
+  // `apply.ts` (no guardaba el passcode nuevo en la base después de un
+  // `update`), no acá.
+  static readonly FIXED_PASSCODE = "001914";
 
   private async setPasscode(page: Page): Promise<void> {
     const passcodeInput = page.getByRole("textbox", { name: eitherName("Passcode", "Contraseña") });

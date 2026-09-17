@@ -46,7 +46,10 @@ async function main() {
             const zoomMeetingId = job.payload.zoom_meeting_id;
             if (zoomMeetingId == null) throw new Error(`update sin zoom_meeting_id (job ${job.id})`);
             await client.updateMeeting(zoomMeetingId, toDesired(job));
-            await completeJob(supabase, job.id, { success: true });
+            // Sin esto, complete_zoom_job hace coalesce(null, passcode viejo)
+            // y la base nunca se entera del passcode fijo que updateMeeting
+            // ya dejó en Zoom — encontrado 2026-09-17 (Zoom bien, base vieja).
+            await completeJob(supabase, job.id, { success: true, passcode: ZoomBrowserClient.FIXED_PASSCODE });
             break;
           }
           case "cancel": {
