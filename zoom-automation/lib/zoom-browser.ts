@@ -246,6 +246,18 @@ export class ZoomBrowserClient {
     await textarea.fill(agenda);
   }
 
+  // A pedido del usuario 2026-09-17: todas las reuniones tienen que
+  // compartir la misma clave, no es opcional (antes quedaba lo que Zoom
+  // generara solo — "597298", "231299", etc., distinto en cada reunión,
+  // confirmado en capturas reales). El campo ya viene con "Passcode"
+  // tildado y un valor generado por Zoom — alcanza con pisarlo.
+  private static readonly FIXED_PASSCODE = "001914";
+
+  private async setPasscode(page: Page): Promise<void> {
+    const passcodeInput = page.getByRole("textbox", { name: eitherName("Passcode", "Contraseña") });
+    await passcodeInput.fill(ZoomBrowserClient.FIXED_PASSCODE);
+  }
+
   // Abre "Copy Invitation" en la página de detalle de una reunión ya
   // creada y devuelve join_url/passcode/meetingId parseados del texto.
   private async readInvitation(page: Page): Promise<{ joinUrl: string; passcode: string | null; meetingId: number }> {
@@ -276,6 +288,7 @@ export class ZoomBrowserClient {
       await this.setStartTime(page, desired.startsAt, desired.timezone);
       await this.setDuration(page, desired.durationMinutes);
       await this.setAgenda(page, desired.agenda);
+      await this.setPasscode(page);
 
       // TODO(codegen): el botón de confirmar no quedó grabado (el codegen
       // saltó directo a la URL resultante) — asumido "Save"/"Guardar" por
@@ -315,6 +328,7 @@ export class ZoomBrowserClient {
       await this.setStartTime(page, desired.startsAt, desired.timezone);
       await this.setDuration(page, desired.durationMinutes);
       await this.setAgenda(page, desired.agenda);
+      await this.setPasscode(page);
 
       await page.getByRole("button", { name: eitherName("Save", "Guardar") }).click();
       // La URL de edición ya matchea /meeting/\d+ ANTES de guardar (no hay
