@@ -23,6 +23,7 @@ export interface Occurrence {
   durationMinutes: number;
   topic: string;
   agenda: string | null;
+  zoomMeetingId: number | null;
   joinUrl: string | null;
   passcode: string | null;
   status: OccurrenceStatus;
@@ -31,23 +32,45 @@ export interface Occurrence {
   pinned: boolean;
 }
 
+// Defensa en profundidad: buildAgenda (reconcile.ts) ya no debería mandar
+// URLs de wol.jw.org en `agenda` (a pedido del usuario 2026-09-17), pero
+// una ocurrencia sincronizada antes de ese cambio puede tener una vieja
+// con la URL embebida — se sacan igual las líneas que sean una URL suelta.
+export function stripLinksFromAgenda(agenda: string): string {
+  return agenda
+    .split("\n")
+    .filter((line) => !/^https?:\/\//i.test(line.trim()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+const SHARE_MESSAGE_TITLE: Record<ScheduleKind, string> = {
+  midweek: "Reunión de entresemana",
+  weekend: "Reunión de fin de semana",
+};
+
 // Mensaje para compartir por WhatsApp (mismo tono que
 // components/whatsapp-share.tsx, que usa el flujo manual viejo de
-// `meetings`) — a diferencia de ese, acá agenda ya viene con el contenido
-// real de wol.jw.org (Fase 3: "{título de la sección}\n{url}"), así que se
-// suma al mensaje cuando existe en vez de perderse.
+// `meetings`) — a diferencia de ese, acá se suma el enriquecimiento real
+// de wol.jw.org (Fase 3) bajo "Temas de esta reunión", sin URLs sueltas.
+// El título de este mensaje es corto a propósito (sin la fecha, que ya va
+// en la línea siguiente) — es distinto de `occurrence.topic`, que sigue
+// llevando la fecha en el resto de la UI (vista de mes del admin, card del
+// dashboard) para poder diferenciar filas de un vistazo.
 export function buildOccurrenceShareMessage(occurrence: Occurrence): string {
   const lines = [
     "¡Hola!",
     "",
     "Te comparto los datos para la reunión de la Congregación Media Agua:",
     "",
-    `-> *${occurrence.topic}*`,
-    `-> ${formatMeetingDate(occurrence.startsAt)}`,
+    `> *${SHARE_MESSAGE_TITLE[occurrence.scheduleKind]}*`,
+    `> ${formatMeetingDate(occurrence.startsAt)}`,
   ];
 
   if (occurrence.agenda) {
-    lines.push("", occurrence.agenda);
+    const topics = stripLinksFromAgenda(occurrence.agenda);
+    if (topics) lines.push("", "Temas de esta reunión:", topics);
   }
 
   lines.push("");
@@ -105,6 +128,7 @@ interface OccurrenceRow {
   duration_minutes: number;
   topic: string;
   agenda: string | null;
+  zoom_meeting_id: number | null;
   join_url: string | null;
   passcode: string | null;
   status: OccurrenceStatus;
@@ -129,6 +153,7 @@ function rowToOccurrence(row: OccurrenceRow): Occurrence {
     durationMinutes: row.duration_minutes,
     topic: row.topic,
     agenda: row.agenda,
+    zoomMeetingId: row.zoom_meeting_id,
     joinUrl: row.join_url,
     passcode: row.passcode,
     status: row.status,
@@ -225,6 +250,43 @@ export async function triggerZoomSync(): Promise<{ ok: boolean; error?: string }
   const { error } = await supabase.functions.invoke("zoom-apply-dispatch", { method: "POST" });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// Botón "Verificar sesión de Zoom" (2026-09-17): mismo mecanismo que
+// triggerZoomSync, dispara zoom-session-check-dispatch → workflow
+// zoom-session-check.yml, que solo navega y guarda el resultado en
+// zoom_session_checks (nunca crea/edita/cancela nada).
+export async function triggerZoomSessionCheck(): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.functions.invoke("zoom-session-check-dispatch", { method: "POST" });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export interface ZoomSessionCheck {
+  checkedAt: string;
+  ok: boolean;
+  message: string | null;
+}
+
+interface ZoomSessionCheckRow {
+  checked_at: string;
+  ok: boolean;
+  message: string | null;
+}
+
+export async function getLatestZoomSessionCheck(): Promise<ZoomSessionCheck | null> {
+  const { data, error } = await supabase
+    .from("zoom_session_checks")
+    .select("*")
+    .order("checked_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as ZoomSessionCheckRow;
+  return { checkedAt: row.checked_at, ok: row.ok, message: row.message };
 }
 
 // Editor de horario (Fase 4): preview (commit:false) y guardado

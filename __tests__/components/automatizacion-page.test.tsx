@@ -10,10 +10,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/automatizacion",
 }));
 
-const { mockGetActiveSchedules, mockGetUpcomingOccurrences, mockGetLatestReconcileRuns } = vi.hoisted(() => ({
+const {
+  mockGetActiveSchedules,
+  mockGetUpcomingOccurrences,
+  mockGetLatestReconcileRuns,
+  mockGetLatestZoomSessionCheck,
+} = vi.hoisted(() => ({
   mockGetActiveSchedules: vi.fn(),
   mockGetUpcomingOccurrences: vi.fn(),
   mockGetLatestReconcileRuns: vi.fn(),
+  mockGetLatestZoomSessionCheck: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
@@ -25,6 +31,7 @@ vi.mock("@/lib/automation", async (importOriginal) => {
     getActiveSchedules: mockGetActiveSchedules,
     getUpcomingOccurrences: mockGetUpcomingOccurrences,
     getLatestReconcileRuns: mockGetLatestReconcileRuns,
+    getLatestZoomSessionCheck: mockGetLatestZoomSessionCheck,
   };
 });
 
@@ -80,6 +87,7 @@ beforeEach(() => {
   mockGetActiveSchedules.mockReset().mockResolvedValue([schedule]);
   mockGetUpcomingOccurrences.mockReset().mockResolvedValue([occurrence]);
   mockGetLatestReconcileRuns.mockReset().mockResolvedValue([run]);
+  mockGetLatestZoomSessionCheck.mockReset().mockResolvedValue(null);
 });
 
 async function renderPage(email: string) {

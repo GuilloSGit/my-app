@@ -10,6 +10,7 @@ function makeChain(result: QueryResult) {
   methods.forEach((m) => {
     chain[m] = vi.fn(() => chain);
   });
+  chain.maybeSingle = () => Promise.resolve(result);
   chain.then = (resolve: (v: QueryResult) => any) => Promise.resolve(result).then(resolve);
   return chain;
 }
@@ -27,6 +28,8 @@ import {
   occurrenceStatusLabel,
   buildOccurrenceShareMessage,
   Occurrence,
+  triggerZoomSessionCheck,
+  getLatestZoomSessionCheck,
 } from "@/lib/automation";
 
 beforeEach(() => {
@@ -82,6 +85,7 @@ describe("getUpcomingOccurrences", () => {
     duration_minutes: 90,
     topic: "Reunión de entresemana - Jueves 17/09",
     agenda: "Vida y Ministerio\nhttps://wol.jw.org/x",
+    zoom_meeting_id: 111,
     join_url: "https://jworg.zoom.us/j/111",
     passcode: "123456",
     status: "synced" as const,
@@ -99,6 +103,7 @@ describe("getUpcomingOccurrences", () => {
 
     expect(occurrence.scheduleKind).toBe("midweek");
     expect(occurrence.joinUrl).toBe("https://jworg.zoom.us/j/111");
+    expect(occurrence.zoomMeetingId).toBe(111);
     expect(occurrence.status).toBe("synced");
   });
 
@@ -174,6 +179,7 @@ describe("buildOccurrenceShareMessage", () => {
     durationMinutes: 120,
     topic: "Reunión de entresemana - Jueves 17/09",
     agenda: null,
+    zoomMeetingId: 123,
     joinUrl: "https://zoom.us/j/123",
     passcode: "abc123",
     status: "synced",
@@ -182,19 +188,26 @@ describe("buildOccurrenceShareMessage", () => {
     pinned: false,
   };
 
-  it("incluye título, fecha, link y contraseña", () => {
+  it("incluye título corto según scheduleKind (no occurrence.topic), fecha, link y contraseña", () => {
     const msg = buildOccurrenceShareMessage(base);
-    expect(msg).toContain("*Reunión de entresemana - Jueves 17/09*");
+    expect(msg).toContain("> *Reunión de entresemana*");
+    expect(msg).not.toContain("Jueves 17/09");
     expect(msg).toContain("Link: https://zoom.us/j/123");
     expect(msg).toContain("Contraseña: abc123");
   });
 
-  it("suma la agenda de WOL cuando existe", () => {
+  it("weekend usa 'Reunión de fin de semana' como título corto", () => {
+    const msg = buildOccurrenceShareMessage({ ...base, scheduleKind: "weekend" });
+    expect(msg).toContain("> *Reunión de fin de semana*");
+  });
+
+  it("suma los temas de la agenda bajo 'Temas de esta reunión', sin la URL de wol.jw.org", () => {
     const msg = buildOccurrenceShareMessage({
       ...base,
-      agenda: "Tesoros de la Biblia\nhttps://wol.jw.org/es/wol/x",
+      agenda: "Tesoros de la Biblia\nhttps://wol.jw.org/es/wol/x\n\nLectura de la Biblia: Proverbios 1:1-7",
     });
-    expect(msg).toContain("Tesoros de la Biblia\nhttps://wol.jw.org/es/wol/x");
+    expect(msg).toContain("Temas de esta reunión:\nTesoros de la Biblia\n\nLectura de la Biblia: Proverbios 1:1-7");
+    expect(msg).not.toContain("https://wol.jw.org");
   });
 
   it("omite agenda/link/contraseña cuando son null", () => {
@@ -220,5 +233,48 @@ describe("triggerZoomSync", () => {
     const result = await triggerZoomSync();
 
     expect(result).toEqual({ ok: false, error: "forbidden" });
+  });
+});
+
+describe("triggerZoomSessionCheck", () => {
+  it("invoca zoom-session-check-dispatch y devuelve ok:true sin error", async () => {
+    mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
+
+    const result = await triggerZoomSessionCheck();
+
+    expect(result).toEqual({ ok: true });
+    expect(mockInvoke).toHaveBeenCalledWith("zoom-session-check-dispatch", { method: "POST" });
+  });
+
+  it("devuelve ok:false con el mensaje de error si la invocación falla", async () => {
+    mockInvoke.mockResolvedValue({ data: null, error: { message: "forbidden" } });
+
+    const result = await triggerZoomSessionCheck();
+
+    expect(result).toEqual({ ok: false, error: "forbidden" });
+  });
+});
+
+describe("getLatestZoomSessionCheck", () => {
+  it("mapea la fila más reciente de zoom_session_checks", async () => {
+    mockFrom.mockReturnValue(
+      makeChain({ data: { checked_at: "2026-09-17T20:00:00Z", ok: true, message: "Sesión activa" } }),
+    );
+
+    const check = await getLatestZoomSessionCheck();
+
+    expect(mockFrom).toHaveBeenCalledWith("zoom_session_checks");
+    expect(check).toEqual({ checkedAt: "2026-09-17T20:00:00Z", ok: true, message: "Sesión activa" });
+  });
+
+  it("devuelve null si todavía no hay ningún chequeo", async () => {
+    mockFrom.mockReturnValue(makeChain({ data: null }));
+
+    expect(await getLatestZoomSessionCheck()).toBeNull();
+  });
+
+  it("propaga el error de Supabase", async () => {
+    mockFrom.mockReturnValue(makeChain({ error: { message: "boom" } }));
+    await expect(getLatestZoomSessionCheck()).rejects.toThrow("boom");
   });
 });

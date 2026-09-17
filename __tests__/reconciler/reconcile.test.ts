@@ -66,31 +66,67 @@ const OK_WOL: WolWeekResult = {
 };
 
 describe("buildAgenda", () => {
-  it("sin bibleReading: título + url, sin línea extra", () => {
-    expect(buildAgenda({ title: "T", url: "https://x" })).toBe("T\nhttps://x");
+  describe("midweek", () => {
+    it("sin treasuresTitle: cae al título genérico de la página del programa", () => {
+      expect(buildAgenda({ title: "14-20 de septiembre", url: "https://x" }, "midweek")).toBe(
+        "Tesoros de la Biblia: 14-20 de septiembre",
+      );
+    });
+
+    it("con treasuresTitle: lo usa en vez del título genérico", () => {
+      expect(
+        buildAgenda(
+          { title: "14-20 de septiembre", url: "https://x", treasuresTitle: "Jehová recompensa a los que siempre le obedecen" },
+          "midweek",
+        ),
+      ).toBe("Tesoros de la Biblia: Jehová recompensa a los que siempre le obedecen");
+    });
+
+    it("con bibleReading: suma la línea de Lectura de la Biblia", () => {
+      expect(
+        buildAgenda(
+          { title: "T", url: "https://x", treasuresTitle: "Título real", bibleReading: "JEREMÍAS 34, 35" },
+          "midweek",
+        ),
+      ).toBe("Tesoros de la Biblia: Título real\nLectura de la Biblia: JEREMÍAS 34, 35");
+    });
+
+    it("nunca incluye la url ni la edición", () => {
+      const agenda = buildAgenda(
+        { title: "T", url: "https://wol.jw.org/x", edition: "Guía de actividades 2026 | septiembre" },
+        "midweek",
+      );
+      expect(agenda).not.toContain("https://");
+      expect(agenda).not.toContain("Guía de actividades");
+    });
   });
 
-  it("con bibleReading: suma la línea de Lectura de la Biblia", () => {
-    expect(buildAgenda({ title: "T", url: "https://x", bibleReading: "JEREMÍAS 34, 35" })).toBe(
-      "T\nhttps://x\n\nLectura de la Biblia: JEREMÍAS 34, 35",
-    );
-  });
+  describe("weekend", () => {
+    it("solo título: sin línea de tema ni edición", () => {
+      expect(buildAgenda({ title: "El libro de Isaías nos consuela", url: "https://x" }, "weekend")).toBe(
+        "El libro de Isaías nos consuela",
+      );
+    });
 
-  it("con edition: la suma entre el título y la url", () => {
-    expect(buildAgenda({ title: "T", url: "https://x", edition: "La Atalaya (estudio) 2026 | julio" })).toBe(
-      "T\nLa Atalaya (estudio) 2026 | julio\nhttps://x",
-    );
-  });
+    it("con theme y edition: las suma en orden título → tema → edición", () => {
+      expect(
+        buildAgenda(
+          {
+            title: "El libro de Isaías nos consuela",
+            url: "https://x",
+            theme: "Meditar en el libro de Isaías puede consolarnos cuando estamos tristes o desanimados.",
+            edition: "La Atalaya (estudio) 2026 | julio",
+          },
+          "weekend",
+        ),
+      ).toBe(
+        "El libro de Isaías nos consuela\nMeditar en el libro de Isaías puede consolarnos cuando estamos tristes o desanimados.\nLa Atalaya (estudio) 2026 | julio",
+      );
+    });
 
-  it("con edition y bibleReading juntos", () => {
-    expect(
-      buildAgenda({
-        title: "T",
-        url: "https://x",
-        edition: "Guía de actividades 2026 | septiembre",
-        bibleReading: "JEREMÍAS 34, 35",
-      }),
-    ).toBe("T\nGuía de actividades 2026 | septiembre\nhttps://x\n\nLectura de la Biblia: JEREMÍAS 34, 35");
+    it("nunca incluye la url", () => {
+      expect(buildAgenda({ title: "T", url: "https://wol.jw.org/x" }, "weekend")).not.toContain("https://");
+    });
   });
 });
 
@@ -103,9 +139,7 @@ describe("reconcileWeek", () => {
     expect(issues).toEqual([]);
     const [[, fields]] = Array.from(state.occurrences.entries());
     expect(fields.topic).toBe("Reunión de entresemana - Jueves 17/09");
-    expect(fields.agenda).toBe(
-      "Aprendamos de los gabaonitas\nhttps://wol.jw.org/es/wol/d/r4/lp-s/2026482",
-    );
+    expect(fields.agenda).toBe("Tesoros de la Biblia: Aprendamos de los gabaonitas");
   });
 
   it("con bibleReading en el item de WOL, la agenda suma la línea de Lectura de la Biblia", async () => {
@@ -118,7 +152,7 @@ describe("reconcileWeek", () => {
 
     const [[, fields]] = Array.from(state.occurrences.entries());
     expect(fields.agenda).toBe(
-      "Aprendamos de los gabaonitas\nhttps://wol.jw.org/es/wol/d/r4/lp-s/2026482\n\nLectura de la Biblia: JEREMÍAS 34, 35",
+      "Tesoros de la Biblia: Aprendamos de los gabaonitas\nLectura de la Biblia: JEREMÍAS 34, 35",
     );
   });
 

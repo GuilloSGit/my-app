@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { dispatchZoomApplyWorkflow } from "@/supabase/functions/_shared/github/dispatch-workflow";
+import { dispatchZoomApplyWorkflow, dispatchWorkflow } from "@/supabase/functions/_shared/github/dispatch-workflow";
 
 describe("dispatchZoomApplyWorkflow", () => {
   it("llama al endpoint de dispatch de GitHub con el token y el ref correctos", async () => {
@@ -26,5 +26,19 @@ describe("dispatchZoomApplyWorkflow", () => {
     const result = await dispatchZoomApplyWorkflow({ githubPat: "bad" }, fetchMock);
 
     expect(result).toEqual({ ok: false, error: "Bad credentials" });
+  });
+});
+
+describe("dispatchWorkflow", () => {
+  it("dispara el workflow file que se le pase, no uno fijo", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    const result = await dispatchWorkflow({ githubPat: "pat123" }, "zoom-session-check.yml", fetchMock);
+
+    expect(result).toEqual({ ok: true });
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://api.github.com/repos/GuilloSGit/my-app/actions/workflows/zoom-session-check.yml/dispatches",
+    );
   });
 });

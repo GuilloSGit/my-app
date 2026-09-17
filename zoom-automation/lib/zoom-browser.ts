@@ -16,13 +16,15 @@ export interface ZoomMeetingResult {
   passcode: string | null;
 }
 
-const SESSION_FILE = path.join(__dirname, "..", ".session", "zoom-storage-state.json");
+// Exportados para reusar en check-session.ts (chequeo liviano de sesión,
+// sin necesitar el resto de ZoomBrowserClient).
+export const SESSION_FILE = path.join(__dirname, "..", ".session", "zoom-storage-state.json");
 const FAILURE_DIR = path.join(__dirname, "..", ".session", "failures");
 
 // Vanity domain real de esta cuenta (organización "Kingdom Support
 // Services, Inc."), confirmado en la grabación de codegen del usuario
 // 2026-09-12 — no es "zoom.us" genérico.
-const BASE_URL = process.env.ZOOM_WEB_BASE_URL ?? "https://jworg.zoom.us";
+export const BASE_URL = process.env.ZOOM_WEB_BASE_URL ?? "https://jworg.zoom.us";
 
 // Formatea la fecha como el accessible name real del botón del datepicker
 // de Zoom: "Saturday,September 19,2026" (sin espacio tras la 1ª coma, con
@@ -55,7 +57,7 @@ function zoomTimeOptionLabel(date: Date, timezone: string): string {
 // SPA que anima la apertura de un dropdown/popover, eso da falsos
 // negativos si se lo llama justo después de un click. Esta versión espera
 // hasta `timeout` antes de concluir que no está.
-async function waitVisible(locator: Locator, timeout = 3000): Promise<boolean> {
+export async function waitVisible(locator: Locator, timeout = 3000): Promise<boolean> {
   return locator
     .waitFor({ state: "visible", timeout })
     .then(() => true)
@@ -77,7 +79,7 @@ async function waitVisible(locator: Locator, timeout = 3000): Promise<boolean> {
 // archivo — un regex anclado rompería el único selector que ya dependía
 // de substring a propósito (`/Copy Invitation/`, por si el texto real
 // trae algo más pegado).
-function eitherName(en: string, es: string): RegExp {
+export function eitherName(en: string, es: string): RegExp {
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`${escape(en)}|${escape(es)}`);
 }

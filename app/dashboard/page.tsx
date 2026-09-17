@@ -1,19 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { AuthGuard } from "@/components/auth-guard";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/admin";
-import { getUpcomingMeetings, Meeting } from "@/lib/meetings";
-import { MeetingCard } from "@/components/meeting-card";
-import { MeetingForm } from "@/components/meeting-form";
-import { CsvImport } from "@/components/csv-import";
-import { ZoomImportDialog } from "@/components/zoom-import-dialog";
-import { ParsedZoomMeeting } from "@/lib/zoom-parser";
-import { CalendarDays, Plus, Upload, Shield, RefreshCw, MessageSquare, CalendarClock } from "lucide-react";
+import { getUpcomingOccurrences, Occurrence } from "@/lib/automation";
+import { OccurrenceMeetingCard } from "@/components/occurrence-meeting-card";
+import { CalendarDays, Shield, RefreshCw, CalendarClock } from "lucide-react";
 import { Tooltip } from "@/components/tooltip";
 
 const containerVariants = {
@@ -33,16 +29,22 @@ const itemVariants = {
   },
 };
 
+// Mismo criterio que usaba getUpcomingMeetings (lib/meetings.ts, flujo
+// manual viejo): una reunión sigue visible hasta 2h después de empezar,
+// no desaparece apenas arranca. Filtro acá, no en getUpcomingOccurrences
+// (esa función la sigue usando /dashboard/automatizacion, que necesita ver
+// TODOS los estados — pending/blocked/cancelled también).
+function isVisibleToCongregation(occurrence: Occurrence): boolean {
+  if (occurrence.status !== "synced") return false;
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  return new Date(occurrence.startsAt).getTime() >= cutoff;
+}
+
 function DashboardContent() {
   const { user } = useAuth();
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showForm, setShowForm] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showZoomImport, setShowZoomImport] = useState(false);
-  const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
-  const [zoomData, setZoomData] = useState<Partial<ParsedZoomMeeting> | null>(null);
-  
+
   const userIsAdmin = isAdmin(user);
   const userName = (() => {
     switch (user?.email) {
@@ -64,38 +66,16 @@ function DashboardContent() {
   })();
 
   // Recargar reuniones
-  const refreshMeetings = useCallback(async () => {
-    const meetings = await getUpcomingMeetings();
-    setMeetings(meetings);
-    setRefreshKey(prev => prev + 1);
+  const refreshOccurrences = useCallback(async () => {
+    const upcoming = await getUpcomingOccurrences();
+    setOccurrences(upcoming.filter(isVisibleToCongregation));
+    setRefreshKey((prev) => prev + 1);
   }, []);
 
   // Cargar reuniones iniciales
   useState(() => {
-    refreshMeetings();
+    refreshOccurrences();
   });
-
-  const handleEdit = (meeting: Meeting) => {
-    setEditingMeeting(meeting);
-    setShowForm(true);
-  };
-
-  const handleSave = async () => {
-    setShowForm(false);
-    setEditingMeeting(null);
-    await refreshMeetings();
-  };
-
-  const handleImportSuccess = () => {
-    setShowImport(false);
-    refreshMeetings();
-  };
-
-  const handleZoomParsed = (data: Partial<ParsedZoomMeeting>) => {
-    setZoomData(data);
-    setShowZoomImport(false);
-    setShowForm(true);
-  };
 
   return (
     <main className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
@@ -143,28 +123,7 @@ function DashboardContent() {
             </p>
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-media-agua text-white text-sm font-medium rounded-lg hover:bg-media-agua-dark transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Nueva Reunión
-              </button>
-              <button
-                onClick={() => setShowImport(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium rounded-lg border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Importar CSV
-              </button>
-              <button
-                onClick={() => setShowZoomImport(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <MessageSquare className="w-4 h-4" />
-                Pegar desde Zoom
-              </button>
-              <button
-                onClick={refreshMeetings}
+                onClick={refreshOccurrences}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -182,7 +141,7 @@ function DashboardContent() {
         )}
 
         {/* Meetings List */}
-        {meetings.length === 0 ? (
+        {occurrences.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -194,8 +153,8 @@ function DashboardContent() {
               No hay reuniones programadas
             </h2>
             <p className="text-slate-500 dark:text-zinc-400 max-w-md mx-auto">
-              {userIsAdmin 
-                ? "Agrega reuniones usando el panel de administración arriba."
+              {userIsAdmin
+                ? "Revisá el horario y las excepciones en Automatización (vista de mes) arriba."
                 : "En este momento no hay reuniones próximas. Contacta al administrador si necesitas información."}
             </p>
           </motion.div>
@@ -207,14 +166,9 @@ function DashboardContent() {
             animate="visible"
             className="grid gap-6"
           >
-            {meetings.map((meeting) => (
-              <motion.div key={meeting.id} variants={itemVariants}>
-                <MeetingCard 
-                  meeting={meeting} 
-                  isAdmin={userIsAdmin}
-                  onEdit={() => handleEdit(meeting)}
-                  onDelete={refreshMeetings}
-                />
+            {occurrences.map((occurrence) => (
+              <motion.div key={occurrence.id} variants={itemVariants}>
+                <OccurrenceMeetingCard occurrence={occurrence} />
               </motion.div>
             ))}
           </motion.div>
@@ -277,37 +231,6 @@ function DashboardContent() {
           </p>
         </motion.div>
       </div>
-
-      {/* Modals */}
-      <AnimatePresence>
-        {showForm && (
-          <MeetingForm
-            meeting={editingMeeting || undefined}
-            zoomData={zoomData || undefined}
-            onSave={() => {
-              handleSave();
-              setZoomData(null);
-            }}
-            onCancel={() => {
-              setShowForm(false);
-              setEditingMeeting(null);
-              setZoomData(null);
-            }}
-          />
-        )}
-        {showImport && (
-          <CsvImport
-            onSuccess={handleImportSuccess}
-            onCancel={() => setShowImport(false)}
-          />
-        )}
-        {showZoomImport && (
-          <ZoomImportDialog
-            onParsed={handleZoomParsed}
-            onCancel={() => setShowZoomImport(false)}
-          />
-        )}
-      </AnimatePresence>
     </main>
   );
 }

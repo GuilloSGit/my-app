@@ -1,0 +1,71 @@
+name: Zoom - verificar sesión
+
+# Chequeo liviano de la sesión de Playwright guardada (ver
+# zoom-automation/check-session.ts) — a diferencia de zoom-apply-browser.yml,
+# no crea/edita/cancela nada, solo navega y guarda el resultado
+# (ok/vencida) en la tabla zoom_session_checks para que
+# /dashboard/automatizacion lo muestre. Disparado por el botón "Verificar
+# sesión de Zoom" (zoom-session-check-dispatch) o a demanda con
+# `gh workflow run zoom-session-check.yml`. Sin `schedule:` a propósito,
+# mismo criterio que zoom-apply-browser.yml.
+#
+# Restaurar sesión: mismo mecanismo que zoom-apply-browser.yml (13 pedazos
+# en base64, ver ese archivo para el porqué) — si la cantidad de pedazos
+# cambia al recapturar, hay que actualizar los dos workflows juntos.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Restaurar sesión de Zoom
+        run: |
+          mkdir -p zoom-automation/.session
+          printf '%s%s%s%s%s%s%s%s%s%s%s%s%s' \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_1 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_2 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_3 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_4 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_5 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_6 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_7 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_8 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_9 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_10 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_11 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_12 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_13 }}" \
+            | base64 -d > zoom-automation/.session/zoom-storage-state.json
+
+      - name: Verificar sesión
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run zoom:check-session
+
+      - name: Subir captura si la sesión estaba vencida
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zoom-session-check-failure
+          path: zoom-automation/.session/failures/
+          retention-days: 7
+          if-no-files-found: ignore

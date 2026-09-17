@@ -13,7 +13,9 @@
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
     "zoom:capture-session": "tsx zoom-automation/capture-session.ts",
-    "zoom:apply": "tsx zoom-automation/apply.ts"
+    "zoom:upload-session": "tsx zoom-automation/upload-session.ts",
+    "zoom:apply": "tsx zoom-automation/apply.ts",
+    "zoom:check-session": "tsx zoom-automation/check-session.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

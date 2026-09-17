@@ -19,13 +19,26 @@ import {
   getUpcomingOccurrences,
   getLatestReconcileRuns,
   triggerZoomSync,
+  triggerZoomSessionCheck,
+  getLatestZoomSessionCheck,
   scheduleKindLabel,
   WEEKDAY_LABEL,
   Schedule,
   Occurrence,
   ReconcileRunSummary,
+  ZoomSessionCheck,
 } from "@/lib/automation";
-import { CalendarClock, RefreshCw, Send, Pencil, ListChecks, CalendarPlus } from "lucide-react";
+import { CalendarClock, RefreshCw, Send, Pencil, ListChecks, CalendarPlus, ShieldCheck } from "lucide-react";
+
+function formatSessionCheck(check: ZoomSessionCheck | null): string {
+  if (!check) return "Sesión de Zoom: sin verificar todavía.";
+  const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(check.checkedAt),
+  );
+  return check.ok
+    ? `Sesión de Zoom: OK (verificado ${when}).`
+    : `Sesión de Zoom: VENCIDA (verificado ${when}) — hay que recapturarla con "npm run zoom:capture-session", desde una terminal real.`;
+}
 
 function formatScheduleSummary(schedule: Schedule): string {
   const time = schedule.localTime.slice(0, 5); // "HH:mm:ss" -> "HH:mm"
@@ -53,6 +66,8 @@ function AutomatizacionContent() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [sessionCheck, setSessionCheck] = useState<ZoomSessionCheck | null>(null);
+  const [checkingSession, setCheckingSession] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [actionOccurrence, setActionOccurrence] = useState<Occurrence | null>(null);
   const [creatingException, setCreatingException] = useState(false);
@@ -71,14 +86,16 @@ function AutomatizacionContent() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [activeSchedules, upcomingOccurrences, latestRuns] = await Promise.all([
+    const [activeSchedules, upcomingOccurrences, latestRuns, latestSessionCheck] = await Promise.all([
       getActiveSchedules(),
       getUpcomingOccurrences(),
       getLatestReconcileRuns(),
+      getLatestZoomSessionCheck(),
     ]);
     setSchedules(activeSchedules);
     setOccurrences(upcomingOccurrences);
     setRuns(latestRuns);
+    setSessionCheck(latestSessionCheck);
     setLoading(false);
   }, []);
 
@@ -97,6 +114,24 @@ function AutomatizacionContent() {
     );
     setSyncing(false);
   }, []);
+
+  const handleCheckSession = useCallback(async () => {
+    setCheckingSession(true);
+    const result = await triggerZoomSessionCheck();
+    if (!result.ok) {
+      setCheckingSession(false);
+      setSessionCheck({ checkedAt: new Date().toISOString(), ok: false, message: `Error al disparar el chequeo: ${result.error ?? "desconocido"}` });
+      return;
+    }
+    // El workflow de GitHub Actions tarda ~1 min en instalar Chromium y
+    // correr — se refresca la lectura después de una espera fija en vez
+    // de pollear, mismo criterio simple que ya usa "Sincronizar ahora"
+    // (que ni siquiera refresca solo, deja el mensaje fijo).
+    setTimeout(async () => {
+      await refresh();
+      setCheckingSession(false);
+    }, 60_000);
+  }, [refresh]);
 
   if (authLoading) {
     return (
@@ -149,6 +184,14 @@ function AutomatizacionContent() {
                 Sincronizar ahora
               </button>
               <button
+                onClick={handleCheckSession}
+                disabled={checkingSession}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                <ShieldCheck className={`w-4 h-4 ${checkingSession ? "animate-pulse" : ""}`} />
+                Verificar sesión de Zoom
+              </button>
+              <button
                 onClick={refresh}
                 disabled={loading}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
@@ -162,6 +205,15 @@ function AutomatizacionContent() {
                 {syncMessage}
               </p>
             )}
+            <p
+              className={`text-xs max-w-xs text-right ${
+                sessionCheck && !sessionCheck.ok
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-slate-500 dark:text-zinc-400"
+              }`}
+            >
+              {checkingSession ? "Verificando sesión de Zoom..." : formatSessionCheck(sessionCheck)}
+            </p>
           </div>
         </motion.div>
 

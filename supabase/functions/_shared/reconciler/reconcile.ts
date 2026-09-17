@@ -90,24 +90,34 @@ export async function reconcileWeek(
 
   await ports.upsertOccurrence(scheduleId, date, {
     topic: buildTopic(schedule.kind, date, schedule.timezone),
-    agenda: buildAgenda(item),
+    agenda: buildAgenda(item, schedule.kind),
   });
 }
 
 // Función pura: separada de reconcileWeek para poder testearla sin pasar
-// por todo el fake de puertos. `edition` existe en items de ambos kinds
-// (ej. "La Atalaya (estudio) 2026 | julio" en weekend, "Guía de
-// actividades 2026 | septiembre" en midweek). `bibleReading` solo existe
-// en items de "midweek" (ver WolItem/wol.ts) — un item de "weekend"
-// simplemente nunca lo trae, así que esa rama no hace falta condicionarla
-// por schedule.kind.
-export function buildAgenda(item: WolItem): string {
-  const lines = [item.title];
-  if (item.edition) lines.push(item.edition);
-  lines.push(item.url);
+// por todo el fake de puertos. Contenido pensado para el mensaje de
+// WhatsApp (buildOccurrenceShareMessage, lib/automation.ts) — a pedido
+// del usuario 2026-09-17, sin URL de wol.jw.org en ningún caso (antes sí
+// se incluía) y con contenido específico por `kind`:
+// - midweek: el título real de "Tesoros de la Biblia" (treasuresTitle,
+//   ver wol.ts) en vez del título genérico de la página del programa
+//   ("14-20 de septiembre") + la cita de "Lectura de la Biblia" si existe.
+//   Si el scrape de treasuresTitle falla, cae al título genérico en vez
+//   de dejar la línea vacía.
+// - weekend: título real del artículo (ya venía bien) + la caja "TEMA"
+//   del artículo si se pudo scrapear + la edición ("La Atalaya (estudio)
+//   2026 | julio").
+export function buildAgenda(item: WolItem, kind: MeetingKind): string {
+  if (kind === "midweek") {
+    const lines = [`Tesoros de la Biblia: ${item.treasuresTitle ?? item.title}`];
+    if (item.bibleReading) lines.push(`Lectura de la Biblia: ${item.bibleReading}`);
+    return lines.join("\n");
+  }
 
-  const base = lines.join("\n");
-  return item.bibleReading ? `${base}\n\nLectura de la Biblia: ${item.bibleReading}` : base;
+  const lines = [item.title];
+  if (item.theme) lines.push(item.theme);
+  if (item.edition) lines.push(item.edition);
+  return lines.join("\n");
 }
 
 // Una transacción/llamada por semana vive del lado del puerto

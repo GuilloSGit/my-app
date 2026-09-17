@@ -46,6 +46,51 @@ export function parseWolHtml(html: string): WolWeekResult {
   return { midweek: pick(SECTION.midweek), weekend: pick(SECTION.weekend) };
 }
 
+// El título real de la primera sección del programa de Vida y Ministerio
+// ("Tesoros de la Biblia") vive en la misma página del programa
+// (item.url) que ya se fetchea para `bibleReading` — sin fetch extra.
+// Ancla por el texto del h2 "TESOROS DE LA BIBLIA" (mismo criterio "nunca
+// por posición" que `parseWolHtml`/`parseBibleReading`, verificado contra
+// el DOM real, semana 2026/38): el título específico de esa semana es el
+// primer `<h3>` que aparece después, dentro de la sección — ej. "1.
+// Jehová recompensa a los que siempre le obedecen". Se saca el prefijo
+// numérico ("1. ") porque es solo el correlativo del punto, no parte del
+// título real.
+export function parseTreasuresTitle(html: string): string | null {
+  const $ = cheerio.load(html);
+  const heading = $("h2")
+    .filter((_, el) => $(el).text().trim().toUpperCase() === "TESOROS DE LA BIBLIA")
+    .first();
+  if (!heading.length) return null;
+
+  // El h2 vive en su propio div envoltorio; el h3 con el título real de
+  // esa semana está dentro del div hermano siguiente (verificado contra
+  // el DOM real — ver fixture wol-2026-38-midweek-program.html).
+  const h3 = heading.parent().nextAll().find("h3").first();
+  if (!h3.length) return null;
+
+  const text = h3.text().trim().replace(/^\d+\.\s*/, "");
+  return text || null;
+}
+
+// La caja "TEMA" del artículo de estudio de La Atalaya vive en la página
+// del artículo (item.url) — hace falta un segundo fetch, igual que la
+// cita bíblica de entresemana. Ancla por el `<p>` cuyo texto sea
+// exactamente "TEMA" (verificado contra el DOM real que pegó el usuario,
+// semana 2026/38 — mismo fixture que
+// __tests__/fixtures/wol-2026-38-weekend-program.html): el resumen real es
+// el texto del siguiente `<p>` hermano.
+export function parseWeekendTheme(html: string): string | null {
+  const $ = cheerio.load(html);
+  const label = $("p")
+    .filter((_, el) => $(el).text().trim().toUpperCase() === "TEMA")
+    .first();
+  if (!label.length) return null;
+
+  const text = label.next("p").text().trim();
+  return text || null;
+}
+
 // La cita de "Lectura de la Biblia" de Vida y Ministerio vive en la página
 // del programa (item.url), no en la página índice de la semana — hace
 // falta un segundo fetch. Ancla en `header h2`: verificado contra el DOM
@@ -68,11 +113,24 @@ export function parseBibleReading(html: string): string | null {
   return text || null;
 }
 
-async function fetchBibleReading(url: string): Promise<string | null> {
+// Un solo fetch a la página del programa cubre tanto `bibleReading` como
+// `treasuresTitle` — ambos viven en el mismo HTML, ver arriba.
+async function fetchMidweekExtras(url: string): Promise<{ bibleReading: string | null; treasuresTitle: string | null }> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return { bibleReading: null, treasuresTitle: null };
+    const html = await res.text();
+    return { bibleReading: parseBibleReading(html), treasuresTitle: parseTreasuresTitle(html) };
+  } catch {
+    return { bibleReading: null, treasuresTitle: null };
+  }
+}
+
+async function fetchWeekendTheme(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-    return parseBibleReading(await res.text());
+    return parseWeekendTheme(await res.text());
   } catch {
     return null;
   }
@@ -82,10 +140,11 @@ async function fetchBibleReading(url: string): Promise<string | null> {
 // sábado caen en la misma semana ISO. `null` (no `throw`) tanto para HTTP
 // no-ok como para fallas de red — el llamador (reconcileWeek) trata esto
 // como transitorio (`wol_unreachable`), nunca como cancelación. El
-// segundo fetch (solo para midweek, la cita bíblica) es best-effort: si
-// falla, `bibleReading` queda `null` y el resto de la semana se procesa
-// igual — no vale la pena tratar esto como wol_unreachable cuando la
-// página índice sí respondió.
+// segundo fetch (a la página del programa/artículo de cada reunión) es
+// best-effort para las dos: si falla, `bibleReading`/`treasuresTitle`/
+// `theme` quedan `null` y el resto de la semana se procesa igual — no
+// vale la pena tratar esto como wol_unreachable cuando la página índice
+// sí respondió.
 export async function fetchWol(week: string): Promise<WolWeekResult | null> {
   try {
     const res = await fetch(`https://wol.jw.org/es/wol/meetings/r4/lp-s/${week}`);
@@ -93,10 +152,12 @@ export async function fetchWol(week: string): Promise<WolWeekResult | null> {
     const result = parseWolHtml(await res.text());
 
     if (result.midweek) {
-      result.midweek = {
-        ...result.midweek,
-        bibleReading: await fetchBibleReading(result.midweek.url),
-      };
+      const { bibleReading, treasuresTitle } = await fetchMidweekExtras(result.midweek.url);
+      result.midweek = { ...result.midweek, bibleReading, treasuresTitle };
+    }
+
+    if (result.weekend) {
+      result.weekend = { ...result.weekend, theme: await fetchWeekendTheme(result.weekend.url) };
     }
 
     return result;

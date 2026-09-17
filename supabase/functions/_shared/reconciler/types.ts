@@ -56,6 +56,8 @@ export interface WolItem {
   url: string;
   edition?: string | null; // "cardLine2" de wol.jw.org, ambos kinds — ver wol.ts
   bibleReading?: string | null; // solo "midweek" — ver wol.ts
+  treasuresTitle?: string | null; // solo "midweek", título real de "Tesoros de la Biblia" — ver wol.ts
+  theme?: string | null; // solo "weekend", caja "TEMA" del artículo de estudio — ver wol.ts
 }
 
 export interface WolWeekResult {

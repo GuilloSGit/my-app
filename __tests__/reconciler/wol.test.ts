@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { parseWolHtml, parseBibleReading } from "@/supabase/functions/_shared/reconciler/wol";
+import {
+  parseWolHtml,
+  parseBibleReading,
+  parseTreasuresTitle,
+  parseWeekendTheme,
+} from "@/supabase/functions/_shared/reconciler/wol";
 
 // Fixture real: HTML de https://wol.jw.org/es/wol/meetings/r4/lp-s/2026/38
 // (fetch verificado en sesión, ver PROGRESS.md 2026-09-12).
@@ -109,5 +114,38 @@ describe("parseBibleReading — contra el DOM real de wol.jw.org", () => {
 
   it("devuelve null si no hay ningún <header> en la página", () => {
     expect(parseBibleReading("<html><body><h2>Sin header</h2></body></html>")).toBeNull();
+  });
+});
+
+describe("parseTreasuresTitle — contra el DOM real de wol.jw.org", () => {
+  it("extrae el título real de 'Tesoros de la Biblia' (punto 1), sin el prefijo numérico", () => {
+    expect(parseTreasuresTitle(MIDWEEK_PROGRAM_HTML)).toBe(
+      "Jehová recompensa a los que siempre le obedecen",
+    );
+  });
+
+  it("devuelve null si no hay ninguna sección 'Tesoros de la Biblia'", () => {
+    expect(parseTreasuresTitle(WEEKEND_PROGRAM_HTML)).toBeNull();
+  });
+
+  it("devuelve null si no hay ningún h3 después del heading", () => {
+    const html = "<h2>TESOROS DE LA BIBLIA</h2>";
+    expect(parseTreasuresTitle(html)).toBeNull();
+  });
+});
+
+describe("parseWeekendTheme — contra el DOM real de wol.jw.org", () => {
+  it("extrae el resumen de la caja TEMA del artículo de estudio", () => {
+    expect(parseWeekendTheme(WEEKEND_PROGRAM_HTML)).toBe(
+      "Meditar en el libro de Isaías puede consolarnos cuando estamos tristes o desanimados.",
+    );
+  });
+
+  it("devuelve null contra la página del programa de entresemana (no tiene esta caja)", () => {
+    expect(parseWeekendTheme(MIDWEEK_PROGRAM_HTML)).toBeNull();
+  });
+
+  it("devuelve null si no hay ningún párrafo TEMA", () => {
+    expect(parseWeekendTheme("<html><body><p>Nada acá</p></body></html>")).toBeNull();
   });
 });

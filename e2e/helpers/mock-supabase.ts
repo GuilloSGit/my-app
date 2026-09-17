@@ -9,11 +9,32 @@ export interface MockMeetingRow {
   passcode: string;
 }
 
+export interface MockOccurrenceRow {
+  id: string;
+  starts_at: string;
+  duration_minutes: number;
+  topic: string;
+  agenda?: string | null;
+  zoom_meeting_id?: number | null;
+  join_url?: string | null;
+  passcode?: string | null;
+  status: "pending" | "synced" | "cancelled" | "blocked";
+  blocked_reason?: string | null;
+  origin?: "schedule" | "manual";
+  pinned?: boolean;
+  schedule_id?: string;
+  // La query real hace `select("*, meeting_schedules(kind)")` — el mock no
+  // arma un join de verdad, así que el embed va inline en la fila de prueba.
+  meeting_schedules?: { kind: string };
+}
+
 export interface MockSupabaseOptions {
   /** Sesión activa a simular, o `null` para un visitante sin login. */
   session?: { email: string } | null;
-  /** Filas iniciales de la tabla "meetings". */
+  /** Filas iniciales de la tabla "meetings" (flujo manual viejo, fallback). */
   meetings?: MockMeetingRow[];
+  /** Filas iniciales de la tabla "meeting_occurrences" (usa /dashboard hoy). */
+  occurrences?: MockOccurrenceRow[];
   /** Si se define, `signInWithOtp` resuelve con este mensaje de error. */
   signInWithOtpError?: string | null;
 }
@@ -29,19 +50,27 @@ export async function installMockSupabase(page: Page, options: MockSupabaseOptio
   const opts = {
     session: options.session ?? null,
     meetings: options.meetings ?? [],
+    occurrences: options.occurrences ?? [],
     signInWithOtpError: options.signInWithOtpError ?? null,
   };
 
   await page.addInitScript((opts) => {
-    let store: any[] = opts.meetings.slice();
+    const tables: Record<string, any[]> = {
+      meetings: opts.meetings.slice(),
+      meeting_occurrences: opts.occurrences.slice(),
+    };
 
-    function buildChain() {
+    function buildChain(table: string) {
+      tables[table] = tables[table] ?? [];
+      let store: any[] = tables[table];
       let op = "select";
       let insertData: any = null;
       let updateData: any = null;
       const eqConditions: Array<{ field: string; value: any }> = [];
       let gteField: string | null = null;
       let gteValue: any = null;
+      let lteField: string | null = null;
+      let lteValue: any = null;
       let orderField: string | null = null;
       let orderAsc = true;
 
@@ -59,14 +88,17 @@ export async function installMockSupabase(page: Page, options: MockSupabaseOptio
         } else if (op === "update") {
           const cond = eqConditions.find((c) => c.field === "id");
           store = store.map((r: any) => (cond && r.id === cond.value ? { ...r, ...updateData } : r));
+          tables[table] = store;
           result = cond ? store.filter((r: any) => r.id === cond.value) : [];
         } else if (op === "delete") {
           const cond = eqConditions.find((c) => c.field === "id");
           result = cond ? store.filter((r: any) => r.id === cond.value) : [];
           if (cond) store = store.filter((r: any) => r.id !== cond.value);
+          tables[table] = store;
         } else {
           result = [...store];
           if (gteField) result = result.filter((r: any) => r[gteField as string] >= gteValue);
+          if (lteField) result = result.filter((r: any) => r[lteField as string] <= lteValue);
           eqConditions.forEach((c) => {
             result = result.filter((r: any) => r[c.field] === c.value);
           });
@@ -109,6 +141,11 @@ export async function installMockSupabase(page: Page, options: MockSupabaseOptio
           gteValue = value;
           return chain;
         },
+        lte: (field: string, value: any) => {
+          lteField = field;
+          lteValue = value;
+          return chain;
+        },
         lt: () => chain,
         order: (field: string, o: any) => {
           orderField = field;
@@ -134,7 +171,7 @@ export async function installMockSupabase(page: Page, options: MockSupabaseOptio
           }),
         signOut: () => Promise.resolve({ error: null }),
       },
-      from: () => buildChain(),
+      from: (table: string) => buildChain(table),
     };
   }, opts);
 }

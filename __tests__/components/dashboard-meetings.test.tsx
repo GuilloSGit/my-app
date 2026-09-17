@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { Meeting } from "@/lib/meetings";
+import { render, screen, waitFor } from "@testing-library/react";
+import type { Occurrence } from "@/lib/automation";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -11,30 +10,20 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
-const {
-  mockGetUpcomingMeetings,
-  mockCreateMeeting,
-  mockUpdateMeeting,
-  mockDeleteMeeting,
-} = vi.hoisted(() => ({
-  mockGetUpcomingMeetings: vi.fn(),
-  mockCreateMeeting: vi.fn(),
-  mockUpdateMeeting: vi.fn(),
-  mockDeleteMeeting: vi.fn(),
+const { mockGetUpcomingOccurrences } = vi.hoisted(() => ({
+  mockGetUpcomingOccurrences: vi.fn(),
 }));
 
-// lib/meetings.ts importa "@/lib/supabase" a nivel de módulo; se stubea para que
-// nunca intente crear un cliente real con env vars ausentes en el entorno de test.
+// lib/automation.ts importa "@/lib/supabase" a nivel de módulo; se stubea para
+// que nunca intente crear un cliente real con env vars ausentes en el entorno
+// de test (mismo patrón que ya usaba este archivo con lib/meetings).
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 
-vi.mock("@/lib/meetings", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/meetings")>();
+vi.mock("@/lib/automation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/automation")>();
   return {
     ...actual,
-    getUpcomingMeetings: mockGetUpcomingMeetings,
-    createMeeting: mockCreateMeeting,
-    updateMeeting: mockUpdateMeeting,
-    deleteMeeting: mockDeleteMeeting,
+    getUpcomingOccurrences: mockGetUpcomingOccurrences,
   };
 });
 
@@ -49,24 +38,33 @@ function mockUser(email: string) {
 }
 
 const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+const pastDate = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(); // más de 2h atrás
 
-const existingMeeting: Meeting = {
-  id: "abc123",
-  title: "Reunión General",
-  date: futureDate,
-  zoomLink: "https://zoom.us/j/111",
-  zoomId: "111111",
-  passcode: "pass123",
-};
+function makeOccurrence(overrides: Partial<Occurrence> = {}): Occurrence {
+  return {
+    id: "occ1",
+    scheduleId: "s1",
+    scheduleKind: "midweek",
+    startsAt: futureDate,
+    durationMinutes: 120,
+    topic: "Reunión de entresemana - Jueves 17/09",
+    agenda: "Lectura de la Biblia: Proverbios 1\nhttps://wol.jw.org/x",
+    zoomMeetingId: 1111111111,
+    joinUrl: "https://jworg.zoom.us/j/1111111111",
+    passcode: "pass123",
+    status: "synced",
+    blockedReason: null,
+    origin: "schedule",
+    pinned: false,
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_ADMIN_EMAIL", "admin@test.com");
   mockPush.mockClear();
-  mockGetUpcomingMeetings.mockReset().mockResolvedValue([existingMeeting]);
-  mockCreateMeeting.mockReset().mockResolvedValue({ ...existingMeeting, id: "new1" });
-  mockUpdateMeeting.mockReset().mockResolvedValue({ ...existingMeeting, title: "Actualizada" });
-  mockDeleteMeeting.mockReset().mockResolvedValue(true);
+  mockGetUpcomingOccurrences.mockReset().mockResolvedValue([makeOccurrence()]);
 });
 
 async function renderDashboard(email: string) {
@@ -75,130 +73,82 @@ async function renderDashboard(email: string) {
   return render(<FreshDashboardPage />);
 }
 
-async function fillMeetingForm(user: ReturnType<typeof userEvent.setup>, container: HTMLElement, title: string) {
-  const titleInput = screen.getByPlaceholderText("Ej: Reunión General");
-  await user.clear(titleInput);
-  await user.type(titleInput, title);
-
-  const dateInput = container.querySelector('input[type="datetime-local"]') as HTMLInputElement;
-  const localDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 16);
-  await user.type(dateInput, localDate);
-
-  await user.type(screen.getByPlaceholderText("https://zoom.us/j/..."), "https://zoom.us/j/999");
-  await user.type(screen.getByPlaceholderText("123 456 7890"), "999999");
-  await user.type(screen.getByPlaceholderText("mediaagua"), "clave123");
-}
-
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — control de acceso", () => {
-  it("un usuario no-admin no ve acciones de administración", async () => {
+describe("Dashboard — lista de reuniones (meeting_occurrences)", () => {
+  it("un no-admin ve la reunión sincronizada, sin acciones de administración", async () => {
     await renderDashboard("miembro@test.com");
 
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetUpcomingOccurrences).toHaveBeenCalled());
+    expect(await screen.findByText("Reunión de entresemana - Jueves 17/09")).toBeInTheDocument();
     expect(screen.queryByText("Nueva Reunión")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Editar")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Eliminar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Panel de Administración:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Automatización (vista de mes)")).not.toBeInTheDocument();
+  });
+
+  it("un admin ve la misma lista, más el link a Automatización (sin botones de CRUD viejo)", async () => {
+    await renderDashboard("admin@test.com");
+
+    await waitFor(() => expect(mockGetUpcomingOccurrences).toHaveBeenCalled());
+    expect(await screen.findByText("Reunión de entresemana - Jueves 17/09")).toBeInTheDocument();
+    expect(screen.getByText("Automatización (vista de mes)")).toBeInTheDocument();
+    expect(screen.queryByText("Nueva Reunión")).not.toBeInTheDocument();
+    expect(screen.queryByText("Importar CSV")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pegar desde Zoom")).not.toBeInTheDocument();
+  });
+
+  it("borde: una ocurrencia 'pending' (sin link todavía) no aparece en la lista", async () => {
+    mockGetUpcomingOccurrences.mockResolvedValue([
+      makeOccurrence({ id: "occ-pending", status: "pending", joinUrl: null, passcode: null }),
+    ]);
+
+    await renderDashboard("miembro@test.com");
+
+    await waitFor(() => expect(mockGetUpcomingOccurrences).toHaveBeenCalled());
+    expect(screen.getByText("No hay reuniones programadas")).toBeInTheDocument();
+  });
+
+  it("borde: una ocurrencia 'cancelled' no aparece en la lista", async () => {
+    mockGetUpcomingOccurrences.mockResolvedValue([
+      makeOccurrence({ id: "occ-cancelled", status: "cancelled" }),
+    ]);
+
+    await renderDashboard("miembro@test.com");
+
+    await waitFor(() => expect(mockGetUpcomingOccurrences).toHaveBeenCalled());
+    expect(screen.getByText("No hay reuniones programadas")).toBeInTheDocument();
+  });
+
+  it("borde: una ocurrencia sincronizada que ya empezó hace más de 2h no aparece", async () => {
+    mockGetUpcomingOccurrences.mockResolvedValue([
+      makeOccurrence({ id: "occ-old", startsAt: pastDate }),
+    ]);
+
+    await renderDashboard("miembro@test.com");
+
+    await waitFor(() => expect(mockGetUpcomingOccurrences).toHaveBeenCalled());
+    expect(screen.getByText("No hay reuniones programadas")).toBeInTheDocument();
   });
 });
 
-describe("Dashboard — crear reunión (admin)", () => {
-  it("camino feliz: crea la reunión y refresca la lista", async () => {
+describe("Dashboard — compartir por WhatsApp", () => {
+  it("arma el mensaje con la agenda cuando la ocurrencia la tiene", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { default: userEvent } = await import("@testing-library/user-event");
     const user = userEvent.setup();
-    const { container } = await renderDashboard("admin@test.com");
 
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalledTimes(1));
+    await renderDashboard("miembro@test.com");
+    await waitFor(() => expect(mockGetUpcomingOccurrences).toHaveBeenCalled());
 
-    await user.click(screen.getByText("Nueva Reunión"));
-    await fillMeetingForm(user, container, "Reunión Nueva");
-    await user.click(screen.getByRole("button", { name: "Crear" }));
+    const shareButtons = await screen.findAllByLabelText("Compartir por WhatsApp");
+    await user.click(shareButtons[0]);
 
-    await waitFor(() => expect(mockCreateMeeting).toHaveBeenCalledTimes(1));
-    expect(mockCreateMeeting).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Reunión Nueva",
-        zoomLink: "https://zoom.us/j/999",
-        zoomId: "999999",
-        passcode: "clave123",
-      })
-    );
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalledTimes(2));
-  });
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    const url = openSpy.mock.calls[0][0] as string;
+    const message = decodeURIComponent(url.split("text=")[1]);
+    expect(message).toContain("Lectura de la Biblia: Proverbios 1");
+    expect(message).toContain("Link: https://jworg.zoom.us/j/1111111111");
 
-  it("borde: título solo con espacios no llama a createMeeting y muestra el error de validación", async () => {
-    const user = userEvent.setup();
-    const { container } = await renderDashboard("admin@test.com");
-
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalled());
-
-    await user.click(screen.getByText("Nueva Reunión"));
-    // El atributo HTML `required` ya bloquea un título vacío antes de llegar al
-    // JS; un título de solo espacios pasa esa validación nativa pero debe caer
-    // en validateMeeting() (ver lib/meetings.ts).
-    await user.type(screen.getByPlaceholderText("Ej: Reunión General"), "   ");
-    const dateInput = container.querySelector('input[type="datetime-local"]') as HTMLInputElement;
-    await user.type(dateInput, new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 16));
-    await user.type(screen.getByPlaceholderText("https://zoom.us/j/..."), "https://zoom.us/j/999");
-    await user.type(screen.getByPlaceholderText("123 456 7890"), "999999");
-    await user.type(screen.getByPlaceholderText("mediaagua"), "clave123");
-
-    await user.click(screen.getByRole("button", { name: "Crear" }));
-
-    expect(await screen.findByText(/el título es requerido/i)).toBeInTheDocument();
-    expect(mockCreateMeeting).not.toHaveBeenCalled();
-  });
-});
-
-describe("Dashboard — editar reunión (admin)", () => {
-  it("camino feliz: precarga el formulario y guarda los cambios", async () => {
-    const user = userEvent.setup();
-    await renderDashboard("admin@test.com");
-
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalled());
-
-    await user.click(screen.getByTitle("Editar"));
-
-    const titleInput = await screen.findByDisplayValue("Reunión General");
-    await user.clear(titleInput);
-    await user.type(titleInput, "Reunión Editada");
-
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-
-    await waitFor(() => expect(mockUpdateMeeting).toHaveBeenCalledTimes(1));
-    expect(mockUpdateMeeting).toHaveBeenCalledWith(
-      "abc123",
-      expect.objectContaining({ title: "Reunión Editada" })
-    );
-  });
-});
-
-describe("Dashboard — eliminar reunión (admin)", () => {
-  it("camino feliz: confirma y elimina", async () => {
-    const user = userEvent.setup();
-    await renderDashboard("admin@test.com");
-
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalled());
-
-    await user.click(screen.getByTitle("Eliminar"));
-    const dialog = await screen.findByText(/¿Eliminar reunión\?/i);
-    const dialogContainer = dialog.closest("div")?.parentElement as HTMLElement;
-    await user.click(within(dialogContainer).getByRole("button", { name: "Eliminar" }));
-
-    await waitFor(() => expect(mockDeleteMeeting).toHaveBeenCalledWith("abc123"));
-  });
-
-  it("borde: cancelar el modal no elimina la reunión", async () => {
-    const user = userEvent.setup();
-    await renderDashboard("admin@test.com");
-
-    await waitFor(() => expect(mockGetUpcomingMeetings).toHaveBeenCalled());
-
-    await user.click(screen.getByTitle("Eliminar"));
-    const dialog = await screen.findByText(/¿Eliminar reunión\?/i);
-    const dialogContainer = dialog.closest("div")?.parentElement as HTMLElement;
-    await user.click(within(dialogContainer).getByRole("button", { name: "Cancelar" }));
-
-    expect(mockDeleteMeeting).not.toHaveBeenCalled();
-    expect(screen.getByText("Reunión General")).toBeInTheDocument();
+    openSpy.mockRestore();
   });
 });
