@@ -713,7 +713,7 @@ usuario:
 |---|---|---|---|
 | `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola create/update/cancel en `zoom_outbox` (el `update` cubre el caso de "agenda que cambió", ver Fase 3) — **activado 2026-09-13**, `cron.schedule('reconcile-every-2-days', ...)`, migración `20260913150000_reconcile_cron.sql` |
 | `zoom-apply-browser` | GitHub Actions | **sin cron propio** | drena el outbox manejando el navegador |
-| `drift-check` | Supabase (pg_cron) | semanal | reporta divergencias Zoom real vs. DB, nunca corrige — **sin diseñar todavía**, bloqueado por la misma falta de acceso a la API REST de Zoom que pausó Fase 2 |
+| `drift-check` | GitHub Actions (no pg_cron — Playwright no corre en Deno) | semanal (`cron: "0 12 * * 0"`) + botón "Chequear divergencias ahora" | reporta divergencias Zoom real vs. DB, nunca corrige — **implementado 2026-09-17, pendiente de deploy y de la primera corrida real** |
 
 **Sin `wol-enrich` como job aparte** (revisado 2026-09-12, ver "Contenido
 desde wol.jw.org" arriba): el propio `reconcile` ya retoma `wol_unreachable`
@@ -774,6 +774,60 @@ más seguido ya no es gratis):
 
 `drift-check` es barato y avisa temprano de que la regla "no se toca desde
 Zoom" se rompió — no corrige automáticamente, reporta.
+
+**Diseño de `drift-check` — implementado 2026-09-17** (decisiones tomadas
+con el usuario, ver `PROGRESS.md` para el detalle completo):
+
+- **Dónde corre**: no puede ser una Edge Function de Supabase (Deno no
+  corre Playwright) — workflow propio de GitHub Actions
+  (`zoom-drift-check.yml`), mismo esqueleto que
+  `zoom-apply-browser.yml`/`zoom-session-check.yml`. A diferencia de
+  `zoom-apply-browser` (sin `schedule:` propio, drena una cola), acá no
+  hay productor/consumidor que alimentar — corrida autocontenida, cron
+  semanal (`0 12 * * 0`) desde el arranque más `workflow_dispatch` y un
+  botón "Chequear divergencias ahora" en `/dashboard/automatizacion`
+  (Edge Function `zoom-drift-check-dispatch`, mismo mecanismo de
+  `dispatchWorkflow` que ya usan los otros dos botones).
+- **Alcance amplio, a propósito**: compara TODA la cuenta de Zoom
+  (`ZoomBrowserClient.listMeetingIds()`, lista "Próximas") contra
+  `meeting_occurrences`, no solo lo que la automatización creó — cualquier
+  reunión real sin `zoom_meeting_id` asociado se reporta como
+  `orphan_in_zoom`, incluidas las del flujo manual viejo que todavía
+  puede tener reuniones vivas.
+- **Comparación por ocurrencia trackeada**: para cada `meeting_occurrences`
+  con `zoom_meeting_id` seteado dentro del horizonte de 35 días (mismo que
+  `reconcileMonth`), `ZoomBrowserClient.readMeetingSummary()` abre
+  "Editar" (sin guardar nada) y lee topic/fecha/hora/duración actuales,
+  reusando los mismos selectores ya verificados que `create`/
+  `updateMeeting` usan para escribir esos campos. Topic/horario/duración
+  distintos → `mismatch`; reunión no encontrada → `missing_in_zoom`.
+- **Aviso**: se guarda en `drift_check_runs` (mismo patrón que
+  `reconcile_runs`/`zoom_session_checks`) y se muestra en
+  `/dashboard/automatizacion`; si `issues.length > 0`, además manda un
+  email por Resend (`zoom-automation/drift-check.ts`,
+  `sendDriftCheckEmail`) — **reusa la cuenta de Resend ya cargada en el
+  proyecto `ferreterias`/Galpón Digital** (mismo `RESEND_API_KEY`, secret
+  nuevo en este repo, cargado por el usuario) en vez de una cuenta propia.
+  Remitente `Galpón Digital <no-reply@galpon-digital.com.ar>` (confirmado
+  leyendo `ferreterias/apps/api/.env`), destinatario
+  `guillermoandrada@gmail.com`. Sin `RESEND_API_KEY` configurada, el
+  script solo loguea un warning y sigue — el guardado en la tabla nunca
+  depende del email.
+- **Selectores nuevos, sin verificar contra la cuenta real todavía**:
+  `listMeetingIds` (paginación real de la lista, si la hay) y
+  `readMeetingSummary` (formato exacto del valor mostrado en los
+  comboboxes ya cerrados del form de edición) son código nuevo — mismo
+  criterio defensivo que el resto de `zoom-browser.ts` (regex bilingüe,
+  `waitVisible`, captura de pantalla en cualquier camino inesperado), pero
+  la primera corrida real hay que tratarla como verificación, no como
+  producción, antes de confiar en el cron semanal.
+- **Detección de "no existe" no destructiva**: a diferencia de
+  `cancelMeeting` (incidente 2026-09-14, donde un falso "no existe"
+  escondió un borrado que nunca pasó), acá el peor caso de una detección
+  equivocada es un falso aviso en el reporte semanal — igual se prioriza
+  no asumir en silencio: `readMeetingSummary` solo devuelve `null` ante una
+  redirección reconocible (`#/upcoming` o `/signin`), cualquier otro
+  estado inesperado tira excepción.
 
 ---
 

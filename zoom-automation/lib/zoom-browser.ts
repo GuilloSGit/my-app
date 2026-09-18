@@ -1,4 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
+import { fromZonedTime } from "date-fns-tz";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
@@ -14,6 +15,21 @@ export interface ZoomMeetingResult {
   zoomMeetingId: number;
   joinUrl: string;
   passcode: string | null;
+}
+
+// Para drift-check: resumen de una reunión ya agendada, leído del form de
+// edición sin guardar nada (ver `readMeetingSummary`).
+export interface ZoomMeetingSummary {
+  topic: string;
+  startsAt: Date;
+  durationMinutes: number;
+}
+
+// Para drift-check: una fila de la lista "Próximas" de Zoom, sin abrir el
+// detalle de cada una (ver `listMeetingIds`).
+export interface ZoomMeetingListItem {
+  zoomMeetingId: number;
+  topic: string;
 }
 
 // Exportados para reusar en check-session.ts (chequeo liviano de sesión,
@@ -82,6 +98,29 @@ export async function waitVisible(locator: Locator, timeout = 3000): Promise<boo
 export function eitherName(en: string, es: string): RegExp {
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`${escape(en)}|${escape(es)}`);
+}
+
+// Inversa de `zoomDateOptionLabel`/`zoomTimeOptionLabel`: parsea el texto
+// que muestran esos mismos comboboxes ya cerrados (leídos por
+// `readMeetingSummary`, sin haberlos tocado) de vuelta a un `Date`. Asume
+// que el valor mostrado en el combobox cerrado usa el mismo formato en
+// inglés que las opciones del dropdown (nombre de mes en inglés,
+// "weekday,Month D,YYYY" / "HH:mm") — sin confirmar todavía contra la
+// cuenta real, ver plan de drift-check.
+function parseZoomDateTime(dateText: string, timeText: string, timezone: string): Date {
+  const dateMatch = dateText.trim().match(/,([A-Za-z]+) (\d{1,2}),(\d{4})$/);
+  const timeMatch = timeText.trim().match(/(\d{1,2}):(\d{2})/);
+  if (!dateMatch || !timeMatch) {
+    throw new Error(`No se pudo parsear fecha/hora de Zoom: fecha="${dateText}" hora="${timeText}"`);
+  }
+  const [, monthName, day, year] = dateMatch;
+  const [, hour, minute] = timeMatch;
+  const month = new Date(`${monthName} 1, 2000`).getMonth() + 1;
+  if (Number.isNaN(month) || month < 1) {
+    throw new Error(`No se pudo interpretar el mes "${monthName}" en la fecha de Zoom: "${dateText}"`);
+  }
+  const iso = `${year}-${String(month).padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`;
+  return fromZonedTime(iso, timezone);
 }
 
 function extractMeetingIdFromUrl(url: string): number {
@@ -466,6 +505,110 @@ export class ZoomBrowserClient {
       }
     } catch (e) {
       await this.screenshotOnFailure(page, "cancel");
+      throw e;
+    } finally {
+      await page.close();
+    }
+  }
+
+  // Para drift-check (Fase 5): lista toda la cuenta, no solo lo que la
+  // automatización creó — a propósito, para detectar también reuniones del
+  // flujo manual viejo que Zoom sigue teniendo vivas. Reusa el selector de
+  // fila ya verificado (`a[href="/s/{id}"]`, confirmado en `cancelMeeting`
+  // como chequeo post-borrado) en vez de inventar uno nuevo.
+  async listMeetingIds(): Promise<ZoomMeetingListItem[]> {
+    const page = await this.openPage();
+    try {
+      await page.goto(`${BASE_URL}/meeting#/upcoming`);
+      await page
+        .locator(".fixed-time-item, .meeting-item")
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+        .catch(() => {}); // lista genuinamente vacía es un resultado válido
+
+      // Paginación real de esta lista (si la cuenta llega a tener más
+      // reuniones que las que entran en una pantalla) sin confirmar
+      // todavía contra el DOM real — tope duro de 20 vueltas como
+      // salvaguarda mientras tanto, ver plan de drift-check.
+      for (let i = 0; i < 20; i++) {
+        const loadMore = page.getByRole("button", { name: eitherName("Show more", "Mostrar más") });
+        if (!(await waitVisible(loadMore, 800))) break;
+        await loadMore.click();
+        await page.waitForTimeout(500);
+      }
+
+      const links = page.locator('a[href^="/s/"]');
+      const count = await links.count();
+      const items: ZoomMeetingListItem[] = [];
+      for (let i = 0; i < count; i++) {
+        const link = links.nth(i);
+        const href = await link.getAttribute("href");
+        const idMatch = href?.match(/^\/s\/(\d+)/);
+        if (!idMatch) continue;
+        items.push({ zoomMeetingId: Number(idMatch[1]), topic: (await link.innerText()).trim() });
+      }
+      return items;
+    } catch (e) {
+      await this.screenshotOnFailure(page, "list-meetings");
+      throw e;
+    } finally {
+      await page.close();
+    }
+  }
+
+  // Para drift-check (Fase 5): lee topic/fecha/hora/duración actuales de
+  // una reunión ya agendada, SIN modificar nada (abre "Editar" para leer
+  // los mismos comboboxes que create/updateMeeting ya usan para escribir,
+  // pero nunca clickea "Save"). Devuelve `null` solo ante una señal
+  // positiva de que la reunión ya no existe (redirección reconocible) —
+  // cualquier otro estado inesperado tira excepción en vez de asumir
+  // "no existe" en silencio (misma lección del incidente 2026-09-14 en
+  // `cancelMeeting`). A diferencia de esa acción destructiva, acá el peor
+  // caso de una detección equivocada es un falso aviso en el reporte
+  // semanal de drift-check, corregible a mano — no se pierde ningún dato.
+  async readMeetingSummary(zoomMeetingId: number, timezone: string): Promise<ZoomMeetingSummary | null> {
+    const page = await this.openPage();
+    try {
+      await page.goto(`${BASE_URL}/meeting/${zoomMeetingId}`);
+      const editName = eitherName("Edit", "Editar");
+      const editLink = page.getByRole("link", { name: editName });
+
+      if (!(await waitVisible(editLink, 8000))) {
+        if (/#\/upcoming|\/signin/.test(page.url())) return null;
+        await this.screenshotOnFailure(page, `drift-summary-${zoomMeetingId}-not-found`);
+        throw new Error(
+          `readMeetingSummary(${zoomMeetingId}): no se encontró el link "Edit"/"Editar" ni una redirección reconocible. URL final: ${page.url()}`,
+        );
+      }
+
+      await editLink.click({ timeout: 30_000 });
+
+      // Mismos selectores ya verificados que create/updateMeeting usan
+      // para ESCRIBIR estos campos — acá se lee su valor actual sin
+      // tocar "Save". El formato exacto que muestra cada combobox ya
+      // cerrado no está confirmado contra la cuenta real todavía (ver
+      // plan de drift-check).
+      const topic = await page.getByRole("textbox", { name: eitherName("Topic", "Tema") }).inputValue();
+      const dateText = await page
+        .getByRole("combobox", { name: eitherName("Choose date", "Elegir fecha") })
+        .innerText();
+      const timeText = await page
+        .getByRole("combobox", { name: eitherName("Select start time", "Seleccionar hora de inicio") })
+        .innerText();
+      const hoursText = await page
+        .getByRole("combobox", { name: eitherName("select duration hours", "seleccionar horas de duración") })
+        .innerText();
+      const minutesText = await page
+        .getByRole("combobox", { name: eitherName("select duration minutes", "seleccionar minutos de duración") })
+        .innerText();
+
+      return {
+        topic,
+        startsAt: parseZoomDateTime(dateText, timeText, timezone),
+        durationMinutes: Number(hoursText) * 60 + Number(minutesText),
+      };
+    } catch (e) {
+      await this.screenshotOnFailure(page, "drift-summary");
       throw e;
     } finally {
       await page.close();

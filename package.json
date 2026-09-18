@@ -15,7 +15,8 @@
     "zoom:capture-session": "tsx zoom-automation/capture-session.ts",
     "zoom:upload-session": "tsx zoom-automation/upload-session.ts",
     "zoom:apply": "tsx zoom-automation/apply.ts",
-    "zoom:check-session": "tsx zoom-automation/check-session.ts"
+    "zoom:check-session": "tsx zoom-automation/check-session.ts",
+    "zoom:drift-check": "tsx zoom-automation/drift-check.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

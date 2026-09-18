@@ -15,11 +15,13 @@ const {
   mockGetUpcomingOccurrences,
   mockGetLatestReconcileRuns,
   mockGetLatestZoomSessionCheck,
+  mockGetLatestDriftCheckRun,
 } = vi.hoisted(() => ({
   mockGetActiveSchedules: vi.fn(),
   mockGetUpcomingOccurrences: vi.fn(),
   mockGetLatestReconcileRuns: vi.fn(),
   mockGetLatestZoomSessionCheck: vi.fn(),
+  mockGetLatestDriftCheckRun: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
@@ -32,6 +34,7 @@ vi.mock("@/lib/automation", async (importOriginal) => {
     getUpcomingOccurrences: mockGetUpcomingOccurrences,
     getLatestReconcileRuns: mockGetLatestReconcileRuns,
     getLatestZoomSessionCheck: mockGetLatestZoomSessionCheck,
+    getLatestDriftCheckRun: mockGetLatestDriftCheckRun,
   };
 });
 
@@ -88,6 +91,7 @@ beforeEach(() => {
   mockGetUpcomingOccurrences.mockReset().mockResolvedValue([occurrence]);
   mockGetLatestReconcileRuns.mockReset().mockResolvedValue([run]);
   mockGetLatestZoomSessionCheck.mockReset().mockResolvedValue(null);
+  mockGetLatestDriftCheckRun.mockReset().mockResolvedValue(null);
 });
 
 async function renderPage(email: string) {

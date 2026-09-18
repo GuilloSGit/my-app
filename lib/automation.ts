@@ -289,6 +289,52 @@ export async function getLatestZoomSessionCheck(): Promise<ZoomSessionCheck | nu
   return { checkedAt: row.checked_at, ok: row.ok, message: row.message };
 }
 
+// Botón "Chequear divergencias ahora" (drift-check, Fase 5): mismo
+// mecanismo que triggerZoomSessionCheck, dispara
+// zoom-drift-check-dispatch → workflow zoom-drift-check.yml, que compara
+// la cuenta real de Zoom contra meeting_occurrences y guarda el resultado
+// en drift_check_runs (nunca crea/edita/cancela nada).
+export async function triggerDriftCheck(): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.functions.invoke("zoom-drift-check-dispatch", { method: "POST" });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export interface DriftCheckIssue {
+  type: string;
+  zoomMeetingId: number;
+  occurrenceId?: string;
+  topic: string;
+  detail: string;
+}
+
+export interface DriftCheckRun {
+  startedAt: string;
+  finishedAt: string | null;
+  issues: DriftCheckIssue[];
+}
+
+interface DriftCheckRunRow {
+  started_at: string;
+  finished_at: string | null;
+  issues: DriftCheckIssue[] | null;
+}
+
+export async function getLatestDriftCheckRun(): Promise<DriftCheckRun | null> {
+  const { data, error } = await supabase
+    .from("drift_check_runs")
+    .select("*")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as DriftCheckRunRow;
+  return { startedAt: row.started_at, finishedAt: row.finished_at, issues: row.issues ?? [] };
+}
+
 // Editor de horario (Fase 4): preview (commit:false) y guardado
 // (commit:true) de un cambio a meeting_schedules, ambos resueltos por la
 // misma Edge Function (schedule-write) — el diff SIEMPRE se recalcula del

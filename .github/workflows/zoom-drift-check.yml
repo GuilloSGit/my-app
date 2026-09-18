@@ -1,0 +1,79 @@
+name: Zoom - drift-check
+
+# Fase 5, último ítem del roadmap: compara la cuenta real de Zoom contra
+# meeting_occurrences y reporta divergencias (nunca corrige nada solo) —
+# ver zoom-automation/drift-check.ts. A diferencia de zoom-apply-browser.yml
+# (sin cron propio, drena una cola), acá no hay productor/consumidor: es
+# una corrida autocontenida, así que sí tiene `schedule:` propio desde el
+# arranque — el repo es público, los minutos de GitHub Actions en runners
+# estándar son gratis (mismo criterio que bajó el backstop de reconcile a
+# cada 10hs, ver PROGRESS.md 2026-09-17).
+#
+# Restaurar sesión: mismo mecanismo que zoom-apply-browser.yml/
+# zoom-session-check.yml (13 pedazos en base64) — si la cantidad de
+# pedazos cambia al recapturar, actualizar los tres workflows juntos.
+
+on:
+  schedule:
+    - cron: "0 12 * * 0" # domingos 12:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Restaurar sesión de Zoom
+        run: |
+          mkdir -p zoom-automation/.session
+          printf '%s%s%s%s%s%s%s%s%s%s%s%s%s' \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_1 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_2 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_3 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_4 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_5 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_6 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_7 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_8 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_9 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_10 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_11 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_12 }}" \
+            "${{ secrets.ZOOM_SESSION_STATE_B64_13 }}" \
+            | base64 -d > zoom-automation/.session/zoom-storage-state.json
+
+      - name: Buscar divergencias contra Zoom real
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Reusa la misma cuenta de Resend que ya usa el proyecto
+          # ferreterias (Galpón Digital) — secret propio de este repo,
+          # cargado a mano por el usuario, nunca por el chat. Sin esta
+          # variable el script sigue guardando el resultado en
+          # drift_check_runs, solo no manda el email de aviso.
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: npm run zoom:drift-check
+
+      - name: Subir capturas de pantalla de fallas (si hubo)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zoom-drift-check-failures
+          path: zoom-automation/.session/failures/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -21,14 +21,17 @@ import {
   triggerZoomSync,
   triggerZoomSessionCheck,
   getLatestZoomSessionCheck,
+  triggerDriftCheck,
+  getLatestDriftCheckRun,
   scheduleKindLabel,
   WEEKDAY_LABEL,
   Schedule,
   Occurrence,
   ReconcileRunSummary,
   ZoomSessionCheck,
+  DriftCheckRun,
 } from "@/lib/automation";
-import { CalendarClock, RefreshCw, Send, Pencil, ListChecks, CalendarPlus, ShieldCheck } from "lucide-react";
+import { CalendarClock, RefreshCw, Send, Pencil, ListChecks, CalendarPlus, ShieldCheck, SearchCheck } from "lucide-react";
 
 function formatSessionCheck(check: ZoomSessionCheck | null): string {
   if (!check) return "Sesión de Zoom: sin verificar todavía.";
@@ -43,6 +46,17 @@ function formatSessionCheck(check: ZoomSessionCheck | null): string {
 function formatScheduleSummary(schedule: Schedule): string {
   const time = schedule.localTime.slice(0, 5); // "HH:mm:ss" -> "HH:mm"
   return `${WEEKDAY_LABEL[schedule.weekday]}, ${time} (${schedule.timezone})`;
+}
+
+function formatDriftCheck(run: DriftCheckRun | null): string {
+  if (!run) return "Divergencias: sin chequear todavía.";
+  if (!run.finishedAt) return "Divergencias: corriendo...";
+  const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(run.finishedAt),
+  );
+  return run.issues.length === 0
+    ? `Divergencias: sin novedad (verificado ${when}).`
+    : `Divergencias: ${run.issues.length} encontrada${run.issues.length === 1 ? "" : "s"} (verificado ${when}).`;
 }
 
 function formatLastRun(run: ReconcileRunSummary | undefined): string {
@@ -68,6 +82,8 @@ function AutomatizacionContent() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [sessionCheck, setSessionCheck] = useState<ZoomSessionCheck | null>(null);
   const [checkingSession, setCheckingSession] = useState(false);
+  const [driftCheck, setDriftCheck] = useState<DriftCheckRun | null>(null);
+  const [checkingDrift, setCheckingDrift] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [actionOccurrence, setActionOccurrence] = useState<Occurrence | null>(null);
   const [creatingException, setCreatingException] = useState(false);
@@ -86,16 +102,18 @@ function AutomatizacionContent() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [activeSchedules, upcomingOccurrences, latestRuns, latestSessionCheck] = await Promise.all([
+    const [activeSchedules, upcomingOccurrences, latestRuns, latestSessionCheck, latestDriftCheck] = await Promise.all([
       getActiveSchedules(),
       getUpcomingOccurrences(),
       getLatestReconcileRuns(),
       getLatestZoomSessionCheck(),
+      getLatestDriftCheckRun(),
     ]);
     setSchedules(activeSchedules);
     setOccurrences(upcomingOccurrences);
     setRuns(latestRuns);
     setSessionCheck(latestSessionCheck);
+    setDriftCheck(latestDriftCheck);
     setLoading(false);
   }, []);
 
@@ -131,6 +149,23 @@ function AutomatizacionContent() {
       await refresh();
       setCheckingSession(false);
     }, 60_000);
+  }, [refresh]);
+
+  const handleCheckDrift = useCallback(async () => {
+    setCheckingDrift(true);
+    const result = await triggerDriftCheck();
+    if (!result.ok) {
+      setCheckingDrift(false);
+      setDriftCheck({ startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), issues: [] });
+      return;
+    }
+    // Este workflow además recorre cada ocurrencia trackeada contra Zoom
+    // real (no solo la lista) — tarda más que "Verificar sesión de Zoom",
+    // se le da el doble de margen antes de refrescar.
+    setTimeout(async () => {
+      await refresh();
+      setCheckingDrift(false);
+    }, 120_000);
   }, [refresh]);
 
   if (authLoading) {
@@ -192,6 +227,14 @@ function AutomatizacionContent() {
                 Verificar sesión de Zoom
               </button>
               <button
+                onClick={handleCheckDrift}
+                disabled={checkingDrift}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                <SearchCheck className={`w-4 h-4 ${checkingDrift ? "animate-pulse" : ""}`} />
+                Chequear divergencias ahora
+              </button>
+              <button
                 onClick={refresh}
                 disabled={loading}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
@@ -214,8 +257,33 @@ function AutomatizacionContent() {
             >
               {checkingSession ? "Verificando sesión de Zoom..." : formatSessionCheck(sessionCheck)}
             </p>
+            <p
+              className={`text-xs max-w-xs text-right ${
+                driftCheck && driftCheck.issues.length > 0
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-slate-500 dark:text-zinc-400"
+              }`}
+            >
+              {checkingDrift ? "Chequeando divergencias..." : formatDriftCheck(driftCheck)}
+            </p>
           </div>
         </motion.div>
+
+        {driftCheck && driftCheck.issues.length > 0 && (
+          <div className="mb-6 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl p-4 sm:p-6">
+            <h2 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">
+              Divergencias encontradas contra la cuenta real de Zoom
+            </h2>
+            <ul className="space-y-1.5 text-sm text-red-700 dark:text-red-400">
+              {driftCheck.issues.map((issue, i) => (
+                <li key={i}>
+                  <span className="font-medium">[{issue.type}]</span> Zoom {issue.zoomMeetingId} &ldquo;{issue.topic}
+                  &rdquo; — {issue.detail}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {schedules.length === 0 && !loading ? (
           <div className="text-center py-16 bg-white dark:bg-zinc-900/50 rounded-2xl border border-slate-200 dark:border-zinc-800">
