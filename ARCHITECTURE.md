@@ -87,6 +87,19 @@ borraron** (fallback documentado, ver ROADMAP.md), pero ya no están
 enganchados a ninguna UI — no asumir que siguen siendo el camino real para
 nada nuevo.
 
+**`drift-check` implementado 2026-09-17 (Fase 5, último ítem del
+roadmap), pendiente de deploy y de la primera corrida real.** Compara
+TODA la cuenta de Zoom (no solo lo creado por la automatización) contra
+`meeting_occurrences` y guarda el resultado en `drift_check_runs`
+(migración `20260917220000_drift_check_runs.sql`), sin corregir nada
+solo. Corre en `.github/workflows/zoom-drift-check.yml` (cron semanal +
+botón "Chequear divergencias ahora" en `/dashboard/automatizacion`, Edge
+Function `zoom-drift-check-dispatch`) — no una Edge Function de Deno
+directa, porque necesita Playwright para listar la cuenta real. Si
+encuentra algo, además manda un email por Resend reusando la cuenta ya
+cargada en el proyecto `ferreterias`/Galpón Digital. Detalle completo de
+diseño en `ZOOM_AUTOMATION.md` y `PROGRESS.md` 2026-09-17.
+
 ## Estructura de carpetas
 
 ```
@@ -127,9 +140,10 @@ lib/
   zoom-parser.ts          Parsea el texto de invitación de Zoom (fallback, sin uso real)
   automation.ts           Fuente real de /dashboard y /dashboard/automatizacion —
                           meeting_schedules/meeting_occurrences/reconcile_runs/
-                          zoom_session_checks, buildOccurrenceShareMessage (WhatsApp
-                          con agenda real de WOL, sin URLs), triggerZoomSync,
-                          triggerZoomSessionCheck, writeSchedule, occurrenceAction, etc.
+                          zoom_session_checks/drift_check_runs, buildOccurrenceShareMessage
+                          (WhatsApp con agenda real de WOL, sin URLs), triggerZoomSync,
+                          triggerZoomSessionCheck, triggerDriftCheck, writeSchedule,
+                          occurrenceAction, etc.
 
 __tests__/                Vitest: unit, integration, components (RTL)
 e2e/                       Playwright: specs + helpers/mock-supabase.ts
@@ -145,6 +159,9 @@ supabase/functions/        Edge Functions (Deno) de la automatización de Zoom
                              (botón "Sincronizar ahora", gate requireAdmin)
   zoom-session-check-dispatch  Dispara zoom-session-check.yml vía API de GitHub
                              (botón "Verificar sesión de Zoom", gate requireAdmin)
+  zoom-drift-check-dispatch   Dispara zoom-drift-check.yml vía API de GitHub
+                             (botón "Chequear divergencias ahora", gate
+                             requireAdmin) — pendiente de deploy, ver arriba
   exception-create, occurrence-action, schedule-write   Escrituras del admin
                              (gate requireAdmin), UI en components/*-dialog.tsx.
                              **schedule-write NO trae contenido de WOL** — una
@@ -171,16 +188,29 @@ zoom-automation/            Script standalone (Node + Playwright, fuera de
                                si no la base nunca se entera del valor real)
   check-session.ts             Chequeo liviano (sin tocar el outbox): navega y
                                guarda el resultado en zoom_session_checks
+  drift-check.ts                Compara TODA la cuenta de Zoom contra
+                               meeting_occurrences (listMeetingIds +
+                               readMeetingSummary), guarda en
+                               drift_check_runs y avisa por email (Resend)
+                               solo si hay divergencias — nunca corrige.
+                               Pendiente de la primera corrida real.
   debug-cancel.ts, debug-cancel-batch.ts   Herramientas de diagnóstico/limpieza
                                puntual contra la cuenta real (cancelar una o
                                varias reuniones a mano), guardadas a propósito
-  lib/zoom-browser.ts          ZoomBrowserClient: create/update/cancelMeeting.
-                               Fuerza el mismo passcode fijo (FIXED_PASSCODE)
-                               en toda reunión — ver Gotchas
+  lib/zoom-browser.ts          ZoomBrowserClient: create/update/cancelMeeting
+                               (escritura) + listMeetingIds/readMeetingSummary
+                               (lectura, para drift-check — sin verificar
+                               contra el DOM real todavía). Fuerza el mismo
+                               passcode fijo (FIXED_PASSCODE) en toda reunión
+                               — ver Gotchas
   lib/outbox.ts                Mismo contrato RPC que usa zoom-apply
 .github/workflows/zoom-apply-browser.yml   Sin schedule: propio a propósito,
                              solo workflow_dispatch (ver Fase 5 arriba)
 .github/workflows/zoom-session-check.yml   Ídem, para el chequeo de sesión
+.github/workflows/zoom-drift-check.yml     Cron semanal (domingos 12:00 UTC)
+                             + workflow_dispatch — a diferencia de los otros
+                             dos, sí tiene schedule: propio desde el arranque
+                             (no hay cola que alimentar, es autocontenido)
 ```
 
 ## Modelo de datos

@@ -42,6 +42,7 @@ npm run zoom:capture-session   # captura la sesión de Zoom a mano (correr local
 npm run zoom:upload-session    # sube la sesión recapturada a los 13 secrets de GitHub (evita hacerlo a mano)
 npm run zoom:apply             # drena zoom_outbox contra Zoom real vía Playwright (ZOOM_HEADFUL=1 para ver el navegador)
 npm run zoom:check-session     # chequeo liviano de sesión (mismo que dispara el botón "Verificar sesión de Zoom")
+npm run zoom:drift-check       # compara Zoom real vs. meeting_occurrences, nunca corrige (botón "Chequear divergencias ahora")
 npx tsc --noEmit -p zoom-automation/tsconfig.json   # typecheck de zoom-automation/ (excluido del tsconfig raíz)
 ```
 

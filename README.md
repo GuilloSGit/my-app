@@ -159,7 +159,7 @@ Los tests cubren:
   mensaje con la agenda real
 - `__tests__/components/automatizacion-page.test.tsx` — vista de mes del
   admin (`/dashboard/automatizacion`): control de acceso, schedules/
-  ocurrencias/última corrida
+  ocurrencias/última corrida (de `reconcile` y de `drift-check`)
 - `e2e/login.spec.ts` y `e2e/dashboard.spec.ts` — los mismos flujos, pero en un
   navegador real contra el dev server. `e2e/helpers/mock-supabase.ts` inyecta
   un Supabase falso en `window` (ver el seam en `lib/supabase.ts`, ahora con
