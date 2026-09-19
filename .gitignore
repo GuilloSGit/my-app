@@ -20,6 +20,7 @@
 # Misc
 .DS_Store
 *.pem
+*.code-workspace
 
 # Debug
 npm-debug.log*
