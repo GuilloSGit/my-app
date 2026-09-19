@@ -1597,3 +1597,12 @@ Solo UI/docs, sin cambios de backend.
 - Test: el mock de `Occurrence` en `automatizacion-page.test.tsx` no tenía `zoomMeetingId` (`tsc --noEmit` fallaba, Vitest no); agregado.
 - Verificación: `lint`, `build`, `test:run` (194), `playwright` (7) y `tsc --noEmit` verdes. El navbar/panel no se probó logueado de verdad (magic link no automatizable).
 - **Pendiente del drift-check (verificado el 2026-09-19 contra el estado real)**: la migración `20260917220000` ya está aplicada en remoto, pero **falta** deployar la Edge Function `zoom-drift-check-dispatch`, cargar el secret `RESEND_API_KEY` en GitHub, y correr `gh workflow run zoom-drift-check.yml` una vez (nunca corrió) para verificar los selectores nuevos antes de marcar el ítem `[x]` en `ROADMAP.md`.
+
+## 2026-09-19 — Primera corrida real de drift-check: 3 bugs encontrados y corregidos
+
+Primera corrida real contra la cuenta (deploy de la Edge Function y `RESEND_API_KEY` ya hechos por el usuario). Resultado inicial: 9 `missing_in_zoom` — todos falsos positivos.
+
+- **Sesión de CI vencida tratada como "no existe"**: `readMeetingSummary` devolvía `null` al caer en `/signin` y `listMeetingIds` devolvía `[]`. Ahora ambos llaman a `assertSessionActive` y tiran un error explícito (con instrucciones de recaptura). Un vencimiento futuro da un error claro, no una tanda de avisos falsos por mail. Confirmado con el chequeo de sesión (#4, 13:12 UTC: "Sesión vencida").
+- **Pedazos sobrantes de la sesión**: al recapturar, la sesión pasó de 13 a 4 pedazos; los secrets 5..13 viejos seguían en GitHub y los workflows los concatenan → sesión corrupta. `upload-session.ts` ahora borra los `ZOOM_SESSION_STATE_B64_N` con N > cantidad de pedazos, y solo avisa si la sesión supera los 13 que leen los workflows.
+- **Lectura de campos del form de edición** (primer selector de drift-check verificado contra el DOM real, vía captura de la falla): el combobox de hora es un `<input>` (`innerText()` daba `""`) → ahora se lee `.value` con fallback a `textContent`; y la fecha se muestra como `DD/MM/YYYY`, no como el label en inglés → `parseZoomDateTime` acepta ambos. Tests nuevos en `__tests__/zoom/parse-zoom-date-time.test.ts`.
+- Verificación: `tsc --noEmit` (raíz y `zoom-automation/`), lint, 200 tests. Falta: correr `zoom-drift-check.yml` de nuevo con este código pusheado.

@@ -80,6 +80,20 @@ export async function waitVisible(locator: Locator, timeout = 3000): Promise<boo
     .catch(() => false);
 }
 
+// Encontrado 2026-09-19: una sesión vencida redirige a `/signin`, y los
+// métodos de solo lectura de drift-check lo tomaban como "no existe" /
+// "lista vacía" (9 missing_in_zoom falsos + mail de alerta). Cualquier
+// método que lea estado de la cuenta debe llamar a esto antes de concluir
+// que algo no está.
+export function assertSessionActive(page: Page, where: string): void {
+  if (/\/signin/.test(page.url())) {
+    throw new Error(
+      `${where}: la sesión de Zoom está vencida (redirigió a ${page.url()}). ` +
+        `Recapturarla con \`npm run zoom:capture-session\` y resubirla con \`npm run zoom:upload-session\`.`,
+    );
+  }
+}
+
 // Encontrado 2026-09-14: la cuenta puede mostrar la UI en inglés o en
 // español según la sesión capturada (el idioma queda pegado a la cookie/
 // localStorage de quien haya logueado a mano, no al locale del runner que
@@ -102,22 +116,35 @@ export function eitherName(en: string, es: string): RegExp {
 
 // Inversa de `zoomDateOptionLabel`/`zoomTimeOptionLabel`: parsea el texto
 // que muestran esos mismos comboboxes ya cerrados (leídos por
-// `readMeetingSummary`, sin haberlos tocado) de vuelta a un `Date`. Asume
-// que el valor mostrado en el combobox cerrado usa el mismo formato en
-// inglés que las opciones del dropdown (nombre de mes en inglés,
-// "weekday,Month D,YYYY" / "HH:mm") — sin confirmar todavía contra la
-// cuenta real, ver plan de drift-check.
-function parseZoomDateTime(dateText: string, timeText: string, timezone: string): Date {
-  const dateMatch = dateText.trim().match(/,([A-Za-z]+) (\d{1,2}),(\d{4})$/);
+// `readMeetingSummary`, sin haberlos tocado) de vuelta a un `Date`. Acepta
+// "DD/MM/YYYY" (formato real confirmado 2026-09-19) o el label en inglés
+// "weekday,Month D,YYYY", más "HH:mm" para la hora.
+export function parseZoomDateTime(dateText: string, timeText: string, timezone: string): Date {
   const timeMatch = timeText.trim().match(/(\d{1,2}):(\d{2})/);
-  if (!dateMatch || !timeMatch) {
+  // Verificado 2026-09-19 contra la cuenta real (captura del form de
+  // edición): el combobox cerrado muestra la fecha como "19/09/2026"
+  // (día/mes/año), no como el label del dropdown en inglés. Se mantiene
+  // también el formato en inglés por si la UI cambia de idioma.
+  const numericMatch = dateText.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const namedMatch = dateText.trim().match(/,([A-Za-z]+) (\d{1,2}),(\d{4})$/);
+  if (!timeMatch || (!numericMatch && !namedMatch)) {
     throw new Error(`No se pudo parsear fecha/hora de Zoom: fecha="${dateText}" hora="${timeText}"`);
   }
-  const [, monthName, day, year] = dateMatch;
   const [, hour, minute] = timeMatch;
-  const month = new Date(`${monthName} 1, 2000`).getMonth() + 1;
-  if (Number.isNaN(month) || month < 1) {
-    throw new Error(`No se pudo interpretar el mes "${monthName}" en la fecha de Zoom: "${dateText}"`);
+  let day: string;
+  let year: string;
+  let month: number;
+  if (numericMatch) {
+    [, day, , year] = numericMatch;
+    month = Number(numericMatch[2]);
+  } else {
+    const [, monthName, namedDay, namedYear] = namedMatch!;
+    day = namedDay;
+    year = namedYear;
+    month = new Date(`${monthName} 1, 2000`).getMonth() + 1;
+    if (Number.isNaN(month) || month < 1) {
+      throw new Error(`No se pudo interpretar el mes "${monthName}" en la fecha de Zoom: "${dateText}"`);
+    }
   }
   const iso = `${year}-${String(month).padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00`;
   return fromZonedTime(iso, timezone);
@@ -526,6 +553,10 @@ export class ZoomBrowserClient {
         .waitFor({ state: "visible", timeout: 15_000 })
         .catch(() => {}); // lista genuinamente vacía es un resultado válido
 
+      // Sesión vencida NO es "lista vacía": sin esto, drift-check reportaría
+      // todas las ocurrencias como missing_in_zoom (falso positivo masivo).
+      assertSessionActive(page, "listMeetingIds");
+
       // Paginación real de esta lista (si la cuenta llega a tener más
       // reuniones que las que entran en una pantalla) sin confirmar
       // todavía contra el DOM real — tope duro de 20 vueltas como
@@ -574,7 +605,10 @@ export class ZoomBrowserClient {
       const editLink = page.getByRole("link", { name: editName });
 
       if (!(await waitVisible(editLink, 8000))) {
-        if (/#\/upcoming|\/signin/.test(page.url())) return null;
+        // El login NO es "la reunión ya no existe": sesión vencida tiene que
+        // fallar fuerte, no marcar toda la agenda como missing_in_zoom.
+        assertSessionActive(page, `readMeetingSummary(${zoomMeetingId})`);
+        if (/#\/upcoming/.test(page.url())) return null;
         await this.screenshotOnFailure(page, `drift-summary-${zoomMeetingId}-not-found`);
         throw new Error(
           `readMeetingSummary(${zoomMeetingId}): no se encontró el link "Edit"/"Editar" ni una redirección reconocible. URL final: ${page.url()}`,
@@ -589,18 +623,21 @@ export class ZoomBrowserClient {
       // cerrado no está confirmado contra la cuenta real todavía (ver
       // plan de drift-check).
       const topic = await page.getByRole("textbox", { name: eitherName("Topic", "Tema") }).inputValue();
-      const dateText = await page
-        .getByRole("combobox", { name: eitherName("Choose date", "Elegir fecha") })
-        .innerText();
-      const timeText = await page
-        .getByRole("combobox", { name: eitherName("Select start time", "Seleccionar hora de inicio") })
-        .innerText();
-      const hoursText = await page
-        .getByRole("combobox", { name: eitherName("select duration hours", "seleccionar horas de duración") })
-        .innerText();
-      const minutesText = await page
-        .getByRole("combobox", { name: eitherName("select duration minutes", "seleccionar minutos de duración") })
-        .innerText();
+      // Verificado 2026-09-19 contra la cuenta real (captura de la falla):
+      // el combobox de hora es un <input> — su valor está en `.value` y
+      // `innerText()` devuelve "" (dio `hora=""` en la primera corrida real).
+      // `readFieldText` lee `.value` si es un input y cae al texto visible
+      // si no, para no depender de qué tipo de elemento es cada combobox.
+      const readFieldText = (name: RegExp) =>
+        page
+          .getByRole("combobox", { name })
+          .evaluate((el) => ((el as HTMLInputElement).value || el.textContent || "").trim());
+      const dateText = await readFieldText(eitherName("Choose date", "Elegir fecha"));
+      const timeText = await readFieldText(eitherName("Select start time", "Seleccionar hora de inicio"));
+      const hoursText = await readFieldText(eitherName("select duration hours", "seleccionar horas de duración"));
+      const minutesText = await readFieldText(
+        eitherName("select duration minutes", "seleccionar minutos de duración"),
+      );
 
       return {
         topic,

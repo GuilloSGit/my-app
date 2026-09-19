@@ -10,7 +10,12 @@ import { SESSION_FILE } from "./lib/zoom-browser";
 // stdin, nunca por argumento (evita que quede en el historial de shell o
 // en `ps`).
 const CHUNK_SIZE = 20_000;
-const CURRENT_SECRET_COUNT = 13; // ver ZOOM_AUTOMATION.md — si cambia, avisa abajo
+// Los workflows (zoom-apply-browser, zoom-session-check, zoom-drift-check)
+// concatenan ZOOM_SESSION_STATE_B64_1..MAX_WORKFLOW_SECRETS; un secret
+// inexistente cuenta como texto vacío, así que una sesión más chica no
+// requiere tocarlos — pero SÍ borrar los pedazos viejos que sobran (ver abajo).
+const MAX_WORKFLOW_SECRETS = 13;
+const SECRET_PREFIX = "ZOOM_SESSION_STATE_B64_";
 
 function chunk(str: string, size: number): string[] {
   const parts: string[] = [];
@@ -25,21 +30,37 @@ function main() {
 
   console.log(`Sesión codificada en ${parts.length} pedazo(s) de hasta ${CHUNK_SIZE} caracteres.`);
 
-  if (parts.length !== CURRENT_SECRET_COUNT) {
+  if (parts.length > MAX_WORKFLOW_SECRETS) {
     console.warn(
-      `\n⚠️  La cantidad de pedazos (${parts.length}) no coincide con la esperada (${CURRENT_SECRET_COUNT}).\n` +
-        `   Hay que actualizar a mano .github/workflows/zoom-apply-browser.yml y\n` +
-        `   .github/workflows/zoom-session-check.yml (la lista de\n` +
-        `   ZOOM_SESSION_STATE_B64_N que concatenan) antes de confiar en este resultado,\n` +
-        `   y este archivo (CURRENT_SECRET_COUNT) para que el próximo aviso sea correcto.\n`,
+      `\n⚠️  La sesión necesita ${parts.length} pedazos y los workflows solo leen ${MAX_WORKFLOW_SECRETS}.\n` +
+        `   Hay que agregar los ZOOM_SESSION_STATE_B64_N faltantes a\n` +
+        `   .github/workflows/zoom-apply-browser.yml, zoom-session-check.yml y\n` +
+        `   zoom-drift-check.yml, y subir MAX_WORKFLOW_SECRETS en este archivo.\n`,
     );
   }
 
   parts.forEach((part, i) => {
-    const name = `ZOOM_SESSION_STATE_B64_${i + 1}`;
+    const name = `${SECRET_PREFIX}${i + 1}`;
     console.log(`Subiendo ${name}...`);
     execFileSync("gh", ["secret", "set", name], { input: part, stdio: ["pipe", "inherit", "inherit"] });
   });
+
+  // Sin esto, si la sesión nueva pesa menos que la anterior, los pedazos
+  // viejos (N > parts.length) siguen en GitHub y los workflows los pegan al
+  // final → base64 corrupto → "sesión vencida" aunque la captura sea buena
+  // (pasó el 2026-09-19: 13 pedazos → 4).
+  const existing = execFileSync("gh", ["secret", "list", "--json", "name", "-q", ".[].name"], {
+    encoding: "utf8",
+  })
+    .split("\n")
+    .filter((name) => name.startsWith(SECRET_PREFIX));
+  for (const name of existing) {
+    const n = Number(name.slice(SECRET_PREFIX.length));
+    if (Number.isInteger(n) && n > parts.length) {
+      console.log(`Borrando ${name} (sobrante de una sesión anterior)...`);
+      execFileSync("gh", ["secret", "delete", name], { stdio: "inherit" });
+    }
+  }
 
   console.log("\nListo — los secrets de GitHub quedaron actualizados.");
 }

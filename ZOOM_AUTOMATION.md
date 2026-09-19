@@ -425,7 +425,11 @@ se resolvió recapturándola (`npm run zoom:capture-session`, a mano, nunca
 en CI). Al recapturar, el archivo pesó más y los secrets de GitHub pasaron
 de 5 a 13 (`ZOOM_SESSION_STATE_B64_1..13`, ver "Piezas" arriba) — hay que
 actualizar tanto los secrets como `.github/workflows/zoom-apply-browser.yml`
-juntos si esto vuelve a pasar. El workflow sigue **sin `schedule:` propio a
+juntos si esto vuelve a pasar. **Si la sesión nueva pesa MENOS (2026-09-19:
+13 → 4 pedazos), los pedazos viejos sobrantes corrompen la sesión** (los
+workflows concatenan siempre 1..13) — `npm run zoom:upload-session` ahora
+los borra solo; un secret inexistente cuenta como vacío, así que no hace
+falta tocar los workflows salvo que la sesión supere los 13 pedazos. El workflow sigue **sin `schedule:` propio a
 propósito** (ver "Jobs (Fase 5)" más abajo): lo disparan el botón
 "Sincronizar ahora" o `reconcile` al terminar, nunca un cron de GitHub
 Actions corriendo solo.
