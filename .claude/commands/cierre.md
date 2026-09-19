@@ -140,7 +140,9 @@ Reportá el resultado (run id, jobs en verde) antes de seguir.
 
 ## 6. Prompt para la próxima sesión
 
-Generá un prompt completo y autónomo:
+Generá un prompt completo y autónomo y **guardalo sobrescribiendo `NEXT_TASK.md`**
+(raíz del repo, versionado — así no depende del chat; actualizá también la
+fecha de "Última actualización"). Mostralo además en la respuesta final:
 
 ```
 Continuamos con my-app (Congregación Media Agua). Estado actual: <resumen breve>.
