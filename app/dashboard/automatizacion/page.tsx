@@ -221,11 +221,12 @@ function AutomatizacionContent() {
             <div className="rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex flex-col gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-media-agua">
-                  1. Gestión diaria
+                  1. Excepciones puntuales
                 </p>
                 <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                  Para cancelar o mover una reunión puntual (feriado, corte de luz, etc.) sin
-                  tocar el horario de todas las semanas.
+                  Para eventos especiales de un día o una semana (Asamblea, transmisión de
+                  JW Stream por visita de la Sucursal Mundial, etc.): cancelar una reunión
+                  de entresemana y/o mover un horario.
                 </p>
               </div>
               <button

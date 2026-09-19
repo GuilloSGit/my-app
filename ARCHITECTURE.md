@@ -105,7 +105,7 @@ del usuario, feedback sobre el diseño original: "se ven feos... poco
 claros... poco responsivo en mobile").** Los 5 botones de acción (que
 antes estaban todos en una sola fila apretada, con los textos de estado
 de sesión/divergencias colgando sueltos al lado) pasaron a ser 4 tarjetas
-numeradas ("1. Gestión diaria", "2. Sincronización con Zoom", "3.
+numeradas ("1. Excepciones puntuales", "2. Sincronización con Zoom", "3.
 Diagnóstico: sesión de Zoom", "4. Diagnóstico: coincide con Zoom real"),
 cada una con una leyenda de una o dos líneas explicando qué hace el botón
 y cuándo usarlo, y el resultado del último chequeo (sesión/divergencias)
@@ -131,7 +131,9 @@ app/
 
 components/
   auth-guard.tsx        Redirige a /login si no hay sesión
-  navbar.tsx             Nav + logout + theme toggle
+  navbar.tsx             Nav + logout + theme toggle + link "Dashboard"/"Volver
+                        al dashboard" en cualquier sub-página logueada que no
+                        sea /dashboard ni la landing (ej. /dashboard/automatizacion)
   theme-provider.tsx     Wrapper de next-themes (attribute="class", defaultTheme="system")
   theme-toggle.tsx       Botón light/dark (usa resolvedTheme, no theme — ver Gotchas)
   occurrence-meeting-card.tsx  Card de solo lectura para /dashboard (meeting_occurrences,
