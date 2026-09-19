@@ -93,12 +93,30 @@ TODA la cuenta de Zoom (no solo lo creado por la automatización) contra
 `meeting_occurrences` y guarda el resultado en `drift_check_runs`
 (migración `20260917220000_drift_check_runs.sql`), sin corregir nada
 solo. Corre en `.github/workflows/zoom-drift-check.yml` (cron semanal +
-botón "Chequear divergencias ahora" en `/dashboard/automatizacion`, Edge
+botón "Chequear divergencias" en `/dashboard/automatizacion`, Edge
 Function `zoom-drift-check-dispatch`) — no una Edge Function de Deno
 directa, porque necesita Playwright para listar la cuenta real. Si
 encuentra algo, además manda un email por Resend reusando la cuenta ya
 cargada en el proyecto `ferreterias`/Galpón Digital. Detalle completo de
 diseño en `ZOOM_AUTOMATION.md` y `PROGRESS.md` 2026-09-17.
+
+**Header de `/dashboard/automatizacion` rediseñado 2026-09-19 (a pedido
+del usuario, feedback sobre el diseño original: "se ven feos... poco
+claros... poco responsivo en mobile").** Los 5 botones de acción (que
+antes estaban todos en una sola fila apretada, con los textos de estado
+de sesión/divergencias colgando sueltos al lado) pasaron a ser 4 tarjetas
+numeradas ("1. Gestión diaria", "2. Sincronización con Zoom", "3.
+Diagnóstico: sesión de Zoom", "4. Diagnóstico: coincide con Zoom real"),
+cada una con una leyenda de una o dos líneas explicando qué hace el botón
+y cuándo usarlo, y el resultado del último chequeo (sesión/divergencias)
+mostrado justo debajo de su propio botón en vez de aparte. Pensado
+explícitamente como guía operativa embebida, para que otro admin pueda
+hacerse cargo del panel sin preguntar. "Recargar" bajó de categoría a un
+botón chico junto al título (no es una decisión operativa, solo refresca
+la vista). Los nombres de botón "Verificar sesión de Zoom" y "Chequear
+divergencias ahora" se acortaron a "Verificar sesión" y "Chequear
+divergencias" — actualizar cualquier referencia nueva a esos labels acá
+o en otros docs.
 
 ## Estructura de carpetas
 
@@ -158,9 +176,9 @@ supabase/functions/        Edge Functions (Deno) de la automatización de Zoom
   zoom-apply-dispatch        Dispara zoom-apply-browser.yml vía API de GitHub
                              (botón "Sincronizar ahora", gate requireAdmin)
   zoom-session-check-dispatch  Dispara zoom-session-check.yml vía API de GitHub
-                             (botón "Verificar sesión de Zoom", gate requireAdmin)
+                             (botón "Verificar sesión", gate requireAdmin)
   zoom-drift-check-dispatch   Dispara zoom-drift-check.yml vía API de GitHub
-                             (botón "Chequear divergencias ahora", gate
+                             (botón "Chequear divergencias", gate
                              requireAdmin) — pendiente de deploy, ver arriba
   exception-create, occurrence-action, schedule-write   Escrituras del admin
                              (gate requireAdmin), UI en components/*-dialog.tsx.

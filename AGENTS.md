@@ -41,8 +41,8 @@ npx tsc --noEmit           # chequeo de tipos sin build completo
 npm run zoom:capture-session   # captura la sesión de Zoom a mano (correr localmente, nunca en CI)
 npm run zoom:upload-session    # sube la sesión recapturada a los 13 secrets de GitHub (evita hacerlo a mano)
 npm run zoom:apply             # drena zoom_outbox contra Zoom real vía Playwright (ZOOM_HEADFUL=1 para ver el navegador)
-npm run zoom:check-session     # chequeo liviano de sesión (mismo que dispara el botón "Verificar sesión de Zoom")
-npm run zoom:drift-check       # compara Zoom real vs. meeting_occurrences, nunca corrige (botón "Chequear divergencias ahora")
+npm run zoom:check-session     # chequeo liviano de sesión (mismo que dispara el botón "Verificar sesión")
+npm run zoom:drift-check       # compara Zoom real vs. meeting_occurrences, nunca corrige (botón "Chequear divergencias")
 npx tsc --noEmit -p zoom-automation/tsconfig.json   # typecheck de zoom-automation/ (excluido del tsconfig raíz)
 ```
 

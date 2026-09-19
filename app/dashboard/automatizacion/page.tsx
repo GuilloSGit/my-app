@@ -185,87 +185,138 @@ function AutomatizacionContent() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-8 flex items-start justify-between gap-4"
+          className="mb-8 space-y-5"
         >
-          <div>
-            <div className="flex items-center gap-2 text-media-agua mb-2">
-              <CalendarClock className="w-5 h-5" />
-              <span className="text-sm font-medium uppercase tracking-wider">
-                Automatización de reuniones
-              </span>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-media-agua mb-2">
+                <CalendarClock className="w-5 h-5" />
+                <span className="text-sm font-medium uppercase tracking-wider">
+                  Automatización de reuniones
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-zinc-100">
+                Vista de mes
+              </h1>
+              <p className="text-slate-600 dark:text-zinc-400 mt-1">
+                Estado de las ocurrencias calculadas por el reconciliador. Solo lectura por ahora.
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-zinc-100">
-              Vista de mes
-            </h1>
-            <p className="text-slate-600 dark:text-zinc-400 mt-1">
-              Estado de las ocurrencias calculadas por el reconciliador. Solo lectura por ahora.
-            </p>
+            <button
+              onClick={refresh}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              Recargar vista
+            </button>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
+
+          <p className="text-xs text-slate-500 dark:text-zinc-500">
+            Guía rápida para operar este panel — pensada para que cualquier otro admin pueda
+            hacerse cargo sin tener que preguntar.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-media-agua">
+                  1. Gestión diaria
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                  Para cancelar o mover una reunión puntual (feriado, corte de luz, etc.) sin
+                  tocar el horario de todas las semanas.
+                </p>
+              </div>
               <button
                 onClick={() => setCreatingException(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
+                className="self-start inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors whitespace-nowrap"
               >
                 <CalendarPlus className="w-4 h-4" />
                 Nueva excepción
               </button>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-media-agua">
+                  2. Sincronización con Zoom
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                  Empuja ya los cambios pendientes a la cuenta real de Zoom. Se hace solo cada
+                  10 horas; usá este botón si necesitás que se refleje antes.
+                </p>
+              </div>
               <button
                 onClick={handleSync}
                 disabled={syncing}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-media-agua text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="self-start inline-flex items-center gap-2 px-3 py-1.5 bg-media-agua text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
               >
                 <Send className={`w-4 h-4 ${syncing ? "animate-pulse" : ""}`} />
                 Sincronizar ahora
               </button>
+              {syncMessage && (
+                <p className="text-xs text-slate-500 dark:text-zinc-400">{syncMessage}</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-media-agua">
+                  3. Diagnóstico: sesión de Zoom
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                  Chequea que el login guardado para operar Zoom siga activo. Si dice
+                  &quot;VENCIDA&quot;, hay que recapturarla desde una terminal (ver README).
+                </p>
+              </div>
               <button
                 onClick={handleCheckSession}
                 disabled={checkingSession}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                className="self-start inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
                 <ShieldCheck className={`w-4 h-4 ${checkingSession ? "animate-pulse" : ""}`} />
-                Verificar sesión de Zoom
+                Verificar sesión
               </button>
+              <p
+                className={`text-xs ${
+                  sessionCheck && !sessionCheck.ok
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-slate-500 dark:text-zinc-400"
+                }`}
+              >
+                {checkingSession ? "Verificando..." : formatSessionCheck(sessionCheck)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-zinc-800 p-4 flex flex-col gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-media-agua">
+                  4. Diagnóstico: coincide con Zoom real
+                </p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                  Compara todas las reuniones de la cuenta de Zoom contra lo guardado acá y
+                  avisa si algo no coincide. No corrige nada solo.
+                </p>
+              </div>
               <button
                 onClick={handleCheckDrift}
                 disabled={checkingDrift}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                className="self-start inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
                 <SearchCheck className={`w-4 h-4 ${checkingDrift ? "animate-pulse" : ""}`} />
-                Chequear divergencias ahora
+                Chequear divergencias
               </button>
-              <button
-                onClick={refresh}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-400 text-sm font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              <p
+                className={`text-xs ${
+                  driftCheck && driftCheck.issues.length > 0
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-slate-500 dark:text-zinc-400"
+                }`}
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                Recargar
-              </button>
-            </div>
-            {syncMessage && (
-              <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-xs text-right">
-                {syncMessage}
+                {checkingDrift ? "Chequeando..." : formatDriftCheck(driftCheck)}
               </p>
-            )}
-            <p
-              className={`text-xs max-w-xs text-right ${
-                sessionCheck && !sessionCheck.ok
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-slate-500 dark:text-zinc-400"
-              }`}
-            >
-              {checkingSession ? "Verificando sesión de Zoom..." : formatSessionCheck(sessionCheck)}
-            </p>
-            <p
-              className={`text-xs max-w-xs text-right ${
-                driftCheck && driftCheck.issues.length > 0
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-slate-500 dark:text-zinc-400"
-              }`}
-            >
-              {checkingDrift ? "Chequeando divergencias..." : formatDriftCheck(driftCheck)}
-            </p>
+            </div>
           </div>
         </motion.div>
 
