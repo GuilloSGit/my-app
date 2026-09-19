@@ -68,6 +68,7 @@ const occurrence: Occurrence = {
   durationMinutes: 90,
   topic: "Reunión de entresemana - Jueves 17/09",
   agenda: null,
+  zoomMeetingId: 111,
   joinUrl: "https://jworg.zoom.us/j/111",
   passcode: "123456",
   status: "synced",
