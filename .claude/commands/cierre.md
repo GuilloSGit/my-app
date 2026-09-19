@@ -99,6 +99,8 @@ la de cómo trabajar, `README.md` es la de setup/uso.
 npm run lint          # ESLint
 npm run build          # build de producción (output: export)
 npm run test:run       # Vitest — unitarios + integración + componentes
+npx tsc --noEmit       # Vitest no tipa: un mock desactualizado solo se ve acá (2026-09-19)
+(cd zoom-automation && npx tsc --noEmit -p .)   # si se tocó zoom-automation/ (excluido del tsc de Next)
 npx playwright test    # E2E (requiere haber corrido `npx playwright install chromium` alguna vez)
 ```
 
