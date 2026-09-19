@@ -1,6 +1,6 @@
 name: Zoom - drift-check
 
-# Fase 5, último ítem del roadmap: compara la cuenta real de Zoom contra
+# Fase 5, último ítem del roadmap (cron cada 10hs desde 2026-09-19, encadenado: reconcile :00 → session-check :20 → drift-check :30; mail solo por divergencias nuevas): compara la cuenta real de Zoom contra
 # meeting_occurrences y reporta divergencias (nunca corrige nada solo) —
 # ver zoom-automation/drift-check.ts. A diferencia de zoom-apply-browser.yml
 # (sin cron propio, drena una cola), acá no hay productor/consumidor: es
@@ -15,8 +15,12 @@ name: Zoom - drift-check
 
 on:
   schedule:
-    - cron: "0 12 * * 0" # domingos 12:00 UTC
+    - cron: "30 0,10,20 * * *" # :30, después del chequeo de sesión (:20)
   workflow_dispatch: {}
+
+concurrency:
+  group: zoom-account # las 3 automatizaciones comparten UNA sesión de Zoom: nunca dos a la vez
+  cancel-in-progress: false
 
 jobs:
   drift-check:

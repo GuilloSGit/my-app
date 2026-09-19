@@ -2,11 +2,12 @@ import "dotenv/config";
 import { ZoomBrowserClient } from "./lib/zoom-browser";
 import { makeSupabase } from "./lib/outbox";
 import { sendAlertEmail } from "./lib/alert-email";
+import { newIssues } from "./lib/drift-diff";
 
 // drift-check (Fase 5, último ítem pendiente del roadmap): compara la
 // cuenta real de Zoom contra meeting_occurrences y reporta divergencias,
 // nunca corrige nada solo. Corre vía
-// .github/workflows/zoom-drift-check.yml (cron semanal + a demanda desde
+// .github/workflows/zoom-drift-check.yml (cron cada 10hs + a demanda desde
 // el botón "Chequear divergencias ahora" de /dashboard/automatizacion).
 // Ver el plan de implementación para el detalle de las decisiones
 // tomadas con el usuario (alcance, aviso por email, etc.).
@@ -128,6 +129,15 @@ async function main() {
     await client.close();
   }
 
+  // Corrida anterior, leída ANTES de insertar esta, para avisar por mail
+  // solo de lo nuevo (ver lib/drift-diff.ts).
+  const { data: previousRun } = await supabase
+    .from("drift_check_runs")
+    .select("issues")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const { error: insertError } = await supabase.from("drift_check_runs").insert({
     started_at: startedAt,
     finished_at: new Date().toISOString(),
@@ -137,15 +147,18 @@ async function main() {
 
   console.log(`[drift-check] ${issues.length} divergencia(s) encontrada(s).`);
 
-  if (issues.length > 0) {
+  const toAlert = newIssues((previousRun?.issues as DriftIssue[] | undefined) ?? null, issues);
+  if (toAlert.length > 0) {
     try {
-      await sendDriftCheckEmail(issues);
+      await sendDriftCheckEmail(toAlert);
     } catch (e) {
       // Un fallo del email no debe tirar abajo la corrida — el registro
       // ya quedó guardado en drift_check_runs, mismo criterio que ya usa
       // reconcile con el dispatch de zoom-apply-browser.
       console.error("[drift-check] No se pudo mandar el email de aviso:", e);
     }
+  } else if (issues.length > 0) {
+    console.log("[drift-check] Sin divergencias nuevas respecto de la corrida anterior — no se manda email.");
   }
 }
 

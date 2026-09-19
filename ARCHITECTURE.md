@@ -92,7 +92,7 @@ roadmap), pendiente de deploy y de la primera corrida real.** Compara
 TODA la cuenta de Zoom (no solo lo creado por la automatización) contra
 `meeting_occurrences` y guarda el resultado en `drift_check_runs`
 (migración `20260917220000_drift_check_runs.sql`), sin corregir nada
-solo. Corre en `.github/workflows/zoom-drift-check.yml` (cron semanal +
+solo. Corre en `.github/workflows/zoom-drift-check.yml` (cron cada 10hs, encadenado tras reconcile, +
 botón "Chequear divergencias" en `/dashboard/automatizacion`, Edge
 Function `zoom-drift-check-dispatch`) — no una Edge Function de Deno
 directa, porque necesita Playwright para listar la cuenta real. Si
@@ -227,7 +227,7 @@ zoom-automation/            Script standalone (Node + Playwright, fuera de
 .github/workflows/zoom-apply-browser.yml   Sin schedule: propio a propósito,
                              solo workflow_dispatch (ver Fase 5 arriba)
 .github/workflows/zoom-session-check.yml   Ídem, para el chequeo de sesión
-.github/workflows/zoom-drift-check.yml     Cron semanal (domingos 12:00 UTC)
+.github/workflows/zoom-drift-check.yml     Cron cada 10hs (:30 de 00/10/20 UTC)
                              + workflow_dispatch — a diferencia de los otros
                              dos, sí tiene schedule: propio desde el arranque
                              (no hay cola que alimentar, es autocontenido)

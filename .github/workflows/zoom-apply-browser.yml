@@ -31,6 +31,10 @@ name: Zoom apply (navegador)
 on:
   workflow_dispatch: {}
 
+concurrency:
+  group: zoom-account # las 3 automatizaciones comparten UNA sesión de Zoom: nunca dos a la vez
+  cancel-in-progress: false
+
 jobs:
   apply:
     runs-on: ubuntu-latest

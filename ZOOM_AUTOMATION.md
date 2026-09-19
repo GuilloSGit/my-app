@@ -717,7 +717,7 @@ usuario:
 |---|---|---|---|
 | `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola create/update/cancel en `zoom_outbox` (el `update` cubre el caso de "agenda que cambió", ver Fase 3) — **activado 2026-09-13**, `cron.schedule('reconcile-every-2-days', ...)`, migración `20260913150000_reconcile_cron.sql` |
 | `zoom-apply-browser` | GitHub Actions | **sin cron propio** | drena el outbox manejando el navegador |
-| `drift-check` | GitHub Actions (no pg_cron — Playwright no corre en Deno) | semanal (`cron: "0 12 * * 0"`) + botón "Chequear divergencias ahora" | reporta divergencias Zoom real vs. DB, nunca corrige — **implementado 2026-09-17, pendiente de deploy y de la primera corrida real** |
+| `drift-check` | GitHub Actions (no pg_cron — Playwright no corre en Deno) | cada 10hs (`cron: "30 0,10,20 * * *"`, encadenado tras reconcile — ver "Cadena de crons") + botón "Chequear divergencias ahora" | reporta divergencias Zoom real vs. DB, nunca corrige — **implementado 2026-09-17, verificado 2026-09-19** |
 
 **Sin `wol-enrich` como job aparte** (revisado 2026-09-12, ver "Contenido
 desde wol.jw.org" arriba): el propio `reconcile` ya retoma `wol_unreachable`
@@ -874,4 +874,16 @@ con el usuario, ver `PROGRESS.md` para el detalle completo):
 
 ### Chequeo de sesión (`check-session.ts`) — qué significa "OK"
 
-Desde 2026-09-19 el chequeo deja constancia de que entró de verdad: URL final, reuniones vistas en "Próximas", cuenta leída de `/profile` (solo evidencia), link a la corrida de GitHub Actions y captura de pantalla (artifact `zoom-session-check-evidence`). Es OK si se ve el botón de agendar **y** — cuando la base espera reuniones futuras en Zoom — la lista no está vacía. Corre solo todos los días 11:00 UTC y manda mail si falla (transición a fallo o recordatorio cada 24 hs). Ver `PROGRESS.md` 2026-09-19.
+Desde 2026-09-19 el chequeo deja constancia de que entró de verdad: URL final, reuniones vistas en "Próximas", cuenta leída de `/profile` (solo evidencia), link a la corrida de GitHub Actions y captura de pantalla (artifact `zoom-session-check-evidence`). Es OK si se ve el botón de agendar **y** — cuando la base espera reuniones futuras en Zoom — la lista no está vacía. Corre solo cada 10hs (`20 0,10,20 * * *`) y manda mail si falla (transición a fallo o recordatorio cada 24 hs). Ver `PROGRESS.md` 2026-09-19.
+
+### Cadena de crons (cada 10hs, desde 2026-09-19)
+
+Todo gratis: el repo es público (minutos de GitHub Actions ilimitados) y `pg_cron` es parte del free tier de Supabase. Corren encadenados, nunca a la vez — las tres automatizaciones comparten UNA sesión de Zoom, y un drift-check corrido mientras `reconcile` todavía aplica cambios compararía contra un estado a medias (falsas divergencias):
+
+| Minuto (00/10/20 UTC = 21/07/17 hora local) | Qué | Dónde |
+|---|---|---|
+| :00 | `reconcile` → al terminar dispara `zoom-apply-browser` | pg_cron (Supabase) |
+| :20 | `zoom-session-check` (constancia + mail si falla) | GitHub Actions |
+| :30 | `zoom-drift-check` (mail solo por divergencias **nuevas**, ver `lib/drift-diff.ts`) | GitHub Actions |
+
+Los tres workflows comparten `concurrency: group: zoom-account` (`cancel-in-progress: false`): si GitHub demora un cron (pasa, es best-effort), se encolan en vez de pisarse. Mientras `reconcile`/apply corren cada 10hs, ya hacen de "wake-up call" de la sesión — pero no está garantizado que eso evite el vencimiento (el CI descarta las cookies renovadas al terminar); la constancia del chequeo de sesión va a mostrar cuánto dura realmente.

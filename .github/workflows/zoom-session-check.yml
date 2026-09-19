@@ -7,7 +7,7 @@ name: Zoom - verificar sesión
 # /dashboard/automatizacion lo muestre. Disparado por el botón "Verificar
 # sesión de Zoom" (zoom-session-check-dispatch) o a demanda con
 # `gh workflow run zoom-session-check.yml`. Desde 2026-09-19 también corre
-# solo una vez por día (repo público: minutos gratis) para enterarnos de un
+# solo cada 10hs, encadenado tras reconcile (repo público: minutos gratis) para enterarnos de un
 # vencimiento antes de que rompa una sincronización — si falla manda un
 # mail (ver check-session.ts). Guarda constancia (captura + reuniones
 # vistas) en cada corrida.
@@ -18,8 +18,12 @@ name: Zoom - verificar sesión
 
 on:
   schedule:
-    - cron: "0 11 * * *" # todos los días 11:00 UTC (8:00 hora local)
+    - cron: "20 0,10,20 * * *" # :20 después del reconcile (:00) y su apply
   workflow_dispatch: {}
+
+concurrency:
+  group: zoom-account # las 3 automatizaciones comparten UNA sesión de Zoom: nunca dos a la vez
+  cancel-in-progress: false
 
 jobs:
   check:
