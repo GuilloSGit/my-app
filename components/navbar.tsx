@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarLogo } from "./calendar-logo";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuth } from "@/lib/auth";
-import { LogOut, LogIn, ArrowRight, LayoutDashboard, Menu, X } from "lucide-react";
+import { LogOut, LogIn, ArrowLeft, ArrowRight, LayoutDashboard, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 // Get basePath for GitHub Pages
@@ -81,6 +81,19 @@ export function Navbar() {
                       </motion.span>
                     </Link>
                   )}
+                  {/* Show 'Volver al dashboard' on any admin sub-page (ej. /dashboard/automatizacion) */}
+                  {!isLanding && !isDashboard && (
+                    <Link href="/dashboard">
+                      <motion.span
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        Dashboard
+                      </motion.span>
+                    </Link>
+                  )}
                   {/* Show 'Salir' on dashboard or other pages */}
                   {!isLanding && (
                     <motion.button
@@ -129,6 +142,14 @@ export function Navbar() {
                         <span className="flex items-center gap-2 px-4 py-3 text-sm font-medium bg-media-agua text-white rounded-lg">
                           <LayoutDashboard className="w-4 h-4" />
                           Ir a la app
+                        </span>
+                      </Link>
+                    )}
+                    {!isLanding && !isDashboard && (
+                      <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                        <span className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-600 dark:text-zinc-400">
+                          <ArrowLeft className="w-4 h-4" />
+                          Volver al dashboard
                         </span>
                       </Link>
                     )}
