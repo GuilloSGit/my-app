@@ -38,9 +38,17 @@ function formatSessionCheck(check: ZoomSessionCheck | null): string {
   const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(
     new Date(check.checkedAt),
   );
-  return check.ok
-    ? `Sesión de Zoom: OK (verificado ${when}).`
-    : `Sesión de Zoom: VENCIDA (verificado ${when}) — hay que recapturarla con "npm run zoom:capture-session", desde una terminal real.`;
+  if (!check.ok) {
+    return `Sesión de Zoom: VENCIDA (verificado ${when}) — hay que recapturarla con "npm run zoom:capture-session", desde una terminal real.`;
+  }
+  // Constancia de que se entró de verdad (chequeos nuevos; los viejos no la traen).
+  const evidence = [
+    check.meetingsSeen != null ? `${check.meetingsSeen} reuniones vistas` : null,
+    check.accountLabel ?? null,
+  ].filter(Boolean);
+  return evidence.length > 0
+    ? `Sesión de Zoom: OK — ${evidence.join(", ")} (verificado ${when}).`
+    : `Sesión de Zoom: OK (verificado ${when}).`;
 }
 
 function formatScheduleSummary(schedule: Schedule): string {
@@ -287,6 +295,19 @@ function AutomatizacionContent() {
                 }`}
               >
                 {checkingSession ? "Verificando..." : formatSessionCheck(sessionCheck)}
+                {!checkingSession && sessionCheck?.runUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={sessionCheck.runUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-media-agua"
+                    >
+                      Ver constancia
+                    </a>
+                  </>
+                )}
               </p>
             </div>
 

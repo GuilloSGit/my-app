@@ -266,12 +266,21 @@ export interface ZoomSessionCheck {
   checkedAt: string;
   ok: boolean;
   message: string | null;
+  // Constancia (migración 20260919140000) — null en chequeos anteriores.
+  meetingsSeen?: number | null;
+  accountLabel?: string | null;
+  runUrl?: string | null;
+  source?: string | null;
 }
 
 interface ZoomSessionCheckRow {
   checked_at: string;
   ok: boolean;
   message: string | null;
+  meetings_seen?: number | null;
+  account_label?: string | null;
+  run_url?: string | null;
+  source?: string | null;
 }
 
 export async function getLatestZoomSessionCheck(): Promise<ZoomSessionCheck | null> {
@@ -286,7 +295,15 @@ export async function getLatestZoomSessionCheck(): Promise<ZoomSessionCheck | nu
   if (!data) return null;
 
   const row = data as ZoomSessionCheckRow;
-  return { checkedAt: row.checked_at, ok: row.ok, message: row.message };
+  return {
+    checkedAt: row.checked_at,
+    ok: row.ok,
+    message: row.message,
+    meetingsSeen: row.meetings_seen ?? null,
+    accountLabel: row.account_label ?? null,
+    runUrl: row.run_url ?? null,
+    source: row.source ?? null,
+  };
 }
 
 // Botón "Chequear divergencias ahora" (drift-check, Fase 5): mismo

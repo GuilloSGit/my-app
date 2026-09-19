@@ -140,6 +140,39 @@ describe("Vista de mes — admin", () => {
     expect(await screen.findByText("No hay horarios configurados todavía")).toBeInTheDocument();
   });
 
+  it("chequeo de sesión OK muestra la constancia (reuniones vistas, cuenta y link a la corrida)", async () => {
+    mockGetLatestZoomSessionCheck.mockResolvedValue({
+      checkedAt: "2026-09-19T11:00:00Z",
+      ok: true,
+      message: "Sesión activa",
+      meetingsSeen: 9,
+      accountLabel: "cuenta@example.com",
+      runUrl: "https://github.com/x/y/actions/runs/1",
+      source: "schedule",
+    });
+
+    await renderPage("admin@test.com");
+
+    expect(await screen.findByText(/9 reuniones vistas, cuenta@example\.com/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ver constancia" })).toHaveAttribute(
+      "href",
+      "https://github.com/x/y/actions/runs/1",
+    );
+  });
+
+  it("borde: chequeo de sesión viejo (sin constancia) sigue mostrándose sin link", async () => {
+    mockGetLatestZoomSessionCheck.mockResolvedValue({
+      checkedAt: "2026-09-17T18:00:00Z",
+      ok: true,
+      message: "Sesión activa",
+    });
+
+    await renderPage("admin@test.com");
+
+    expect(await screen.findByText(/Sesión de Zoom: OK \(verificado/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ver constancia" })).not.toBeInTheDocument();
+  });
+
   it("borde: ocurrencia bloqueada muestra el motivo", async () => {
     mockGetUpcomingOccurrences.mockResolvedValue([
       { ...occurrence, status: "blocked", blockedReason: "wol_section_missing" },

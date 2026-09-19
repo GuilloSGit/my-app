@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { ZoomBrowserClient } from "./lib/zoom-browser";
 import { makeSupabase } from "./lib/outbox";
+import { sendAlertEmail } from "./lib/alert-email";
 
 // drift-check (Fase 5, último ítem pendiente del roadmap): compara la
 // cuenta real de Zoom contra meeting_occurrences y reporta divergencias,
@@ -40,32 +41,11 @@ function scheduleTimezone(row: TrackedOccurrenceRow): string {
 }
 
 async function sendDriftCheckEmail(issues: DriftIssue[]): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("[drift-check] RESEND_API_KEY no configurada — no se manda el email de aviso, solo queda en el dashboard.");
-    return;
-  }
-
   const lines = issues.map((issue) => `- [${issue.type}] Zoom ${issue.zoomMeetingId} "${issue.topic}": ${issue.detail}`);
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "Galpón Digital <no-reply@galpon-digital.com.ar>",
-      to: "guillermoandrada@gmail.com",
-      subject: `drift-check: ${issues.length} divergencia${issues.length === 1 ? "" : "s"} en Zoom (Media Agua)`,
-      text: [`drift-check encontró ${issues.length} divergencia(s) entre Zoom y la base:`, "", ...lines].join("\n"),
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => `HTTP ${res.status}`);
-    throw new Error(`Resend respondió ${res.status}: ${body}`);
-  }
+  await sendAlertEmail(
+    `drift-check: ${issues.length} divergencia${issues.length === 1 ? "" : "s"} en Zoom (Media Agua)`,
+    [`drift-check encontró ${issues.length} divergencia(s) entre Zoom y la base:`, "", ...lines].join("\n"),
+  );
 }
 
 async function main() {

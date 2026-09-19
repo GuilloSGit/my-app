@@ -264,7 +264,40 @@ describe("getLatestZoomSessionCheck", () => {
     const check = await getLatestZoomSessionCheck();
 
     expect(mockFrom).toHaveBeenCalledWith("zoom_session_checks");
-    expect(check).toEqual({ checkedAt: "2026-09-17T20:00:00Z", ok: true, message: "Sesión activa" });
+    expect(check).toEqual({
+      checkedAt: "2026-09-17T20:00:00Z",
+      ok: true,
+      message: "Sesión activa",
+      meetingsSeen: null,
+      accountLabel: null,
+      runUrl: null,
+      source: null,
+    });
+  });
+
+  it("mapea la constancia (reuniones vistas, cuenta, link a la corrida) de los chequeos nuevos", async () => {
+    mockFrom.mockReturnValue(
+      makeChain({
+        data: {
+          checked_at: "2026-09-19T11:00:00Z",
+          ok: true,
+          message: "Sesión activa",
+          meetings_seen: 9,
+          account_label: "cuenta@example.com",
+          run_url: "https://github.com/x/y/actions/runs/1",
+          source: "schedule",
+        },
+      }),
+    );
+
+    const check = await getLatestZoomSessionCheck();
+
+    expect(check).toMatchObject({
+      meetingsSeen: 9,
+      accountLabel: "cuenta@example.com",
+      runUrl: "https://github.com/x/y/actions/runs/1",
+      source: "schedule",
+    });
   });
 
   it("devuelve null si todavía no hay ningún chequeo", async () => {

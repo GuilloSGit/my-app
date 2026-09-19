@@ -1607,3 +1607,13 @@ Primera corrida real contra la cuenta (deploy de la Edge Function y `RESEND_API_
 - **Lectura de campos del form de edición** (primer selector de drift-check verificado contra el DOM real, vía captura de la falla): el combobox de hora es un `<input>` (`innerText()` daba `""`) → ahora se lee `.value` con fallback a `textContent`; y la fecha se muestra como `DD/MM/YYYY`, no como el label en inglés → `parseZoomDateTime` acepta ambos. Tests nuevos en `__tests__/zoom/parse-zoom-date-time.test.ts`.
 - Verificación: `tsc --noEmit` (raíz y `zoom-automation/`), lint, 200 tests. Falta: correr `zoom-drift-check.yml` de nuevo con este código pusheado.
 - **Verificado**: tras el push de `2b9b7a2`, `zoom-drift-check.yml` (run `35446059120`) terminó en verde con **0 divergencias** guardadas en `drift_check_runs` — las 9 reuniones reales coinciden con la base en tema/horario/duración. Ítem de Fase 5 marcado `[x]` en `ROADMAP.md`. Sin verificar todavía: el mail de Resend (solo sale con ≥1 divergencia) y el cron semanal de los domingos.
+
+## 2026-09-19 — "Verificar sesión" con constancia + chequeo diario con aviso
+
+A pedido del usuario: el chequeo solo miraba que apareciera "Programar una reunión" y no dejaba ninguna prueba de que se había entrado de verdad a la cuenta (el primer OK de la mañana no se pudo verificar a posteriori).
+
+- **OK más estricto** (`check-session.ts`): además del botón de agendar, si la base espera reuniones futuras ya creadas en Zoom, la lista "Próximas" tiene que mostrar al menos una — una lista vacía cuando debería tener contenido da "Sesión dudosa", no OK.
+- **Constancia** en `zoom_session_checks` (migración `20260919140000`, aplicada): `final_url`, `meetings_seen`, `account_label` (email leído de `/profile`, solo evidencia, NO decide el OK — selector sin verificar), `run_url` y `source` (manual/schedule). Captura de pantalla en CADA corrida (artifact `zoom-session-check-evidence`, 14 días), no solo en fallas.
+- **Panel**: "Sesión de Zoom: OK — 9 reuniones vistas, cuenta@… (verificado …)" + link "Ver constancia" a la corrida (captura). Los chequeos viejos sin constancia se siguen mostrando igual.
+- **Cron diario** de `zoom-session-check.yml` (`0 11 * * *` UTC, 8:00 hora local) con **aviso por mail** si falla — solo en la transición a fallo o como recordatorio cada 24 hs (no un mail por corrida). Helper compartido `zoom-automation/lib/alert-email.ts` (también lo usa drift-check).
+- Tests: 203 (nuevos para la constancia en lib y en el panel). Sin verificar todavía: el selector del email en `/profile` (si no lo encuentra, `account_label` queda null y no pasa nada).

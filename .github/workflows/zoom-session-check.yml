@@ -6,14 +6,19 @@ name: Zoom - verificar sesión
 # (ok/vencida) en la tabla zoom_session_checks para que
 # /dashboard/automatizacion lo muestre. Disparado por el botón "Verificar
 # sesión de Zoom" (zoom-session-check-dispatch) o a demanda con
-# `gh workflow run zoom-session-check.yml`. Sin `schedule:` a propósito,
-# mismo criterio que zoom-apply-browser.yml.
+# `gh workflow run zoom-session-check.yml`. Desde 2026-09-19 también corre
+# solo una vez por día (repo público: minutos gratis) para enterarnos de un
+# vencimiento antes de que rompa una sincronización — si falla manda un
+# mail (ver check-session.ts). Guarda constancia (captura + reuniones
+# vistas) en cada corrida.
 #
 # Restaurar sesión: mismo mecanismo que zoom-apply-browser.yml (13 pedazos
 # en base64, ver ese archivo para el porqué) — si la cantidad de pedazos
 # cambia al recapturar, hay que actualizar los dos workflows juntos.
 
 on:
+  schedule:
+    - cron: "0 11 * * *" # todos los días 11:00 UTC (8:00 hora local)
   workflow_dispatch: {}
 
 jobs:
@@ -59,13 +64,14 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: npm run zoom:check-session
 
-      - name: Subir captura si la sesión estaba vencida
+      - name: Subir constancia (capturas de pantalla)
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: zoom-session-check-failure
-          path: zoom-automation/.session/failures/
-          retention-days: 7
+          name: zoom-session-check-evidence
+          path: zoom-automation/.session/evidence/
+          retention-days: 14
           if-no-files-found: ignore
