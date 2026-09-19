@@ -1586,3 +1586,14 @@ Retoma el pendiente anotado en la sesión anterior del mismo día ("`duration_mi
 - Gotcha de test encontrado al correr la suite: `__tests__/components/automatizacion-page.test.tsx` mockea `@/lib/automation` función por función — al sumar `getLatestDriftCheckRun` sin agregarlo al mock, el componente llamaba a la implementación real contra `supabase.from` (mockeado como `{}` vacío en ese test) y tiraba `TypeError: supabase.from is not a function` como unhandled rejection en 3 tests. Se agregó el mock (`mockGetLatestDriftCheckRun`) siguiendo el mismo patrón que los otros cuatro.
 - Verificación completa antes de este commit: `npm run lint`, `npm run build`, `npm run test:run` (194 tests), `npx playwright test` (7 tests), `tsc --noEmit` en `zoom-automation/`, `deno check` en `zoom-drift-check-dispatch` — todo verde.
 - **Pendiente real, no cerrado en esta sesión**: falta el deploy de la migración y de la Edge Function nueva (bloqueado para el asistente por el clasificador de "Production Deploy", igual que siempre en este proyecto — lo corre el usuario), que el usuario cargue el secret `RESEND_API_KEY` en GitHub, y sobre todo la primera corrida real contra la cuenta (`gh workflow run zoom-drift-check.yml`) para confirmar o corregir los selectores nuevos de `listMeetingIds`/`readMeetingSummary` — recién ahí este ítem de Fase 5 se puede marcar `[x]` en `ROADMAP.md`.
+
+## 2026-09-19 — Panel de automatización: copy de la tarjeta 1 + link "Dashboard" en el navbar
+
+Solo UI/docs, sin cambios de backend.
+
+- **Tarjeta 1 de `/dashboard/automatizacion`**: "Gestión diaria" → "Excepciones puntuales", con leyenda basada en el uso real confirmado por el usuario (Asamblea, transmisión de JW Stream por visita de la Sucursal Mundial: cancelar la reunión de entresemana y/o mover un horario), no en ejemplos genéricos como feriados.
+- **`components/navbar.tsx`**: link "Dashboard" (desktop) / "Volver al dashboard" (mobile) en cualquier sub-página logueada que no sea `/dashboard` ni la landing (ej. `/dashboard/automatizacion`). Documentado en `ARCHITECTURE.md`.
+- `.gitignore`: se ignora `*.code-workspace`.
+- Test: el mock de `Occurrence` en `automatizacion-page.test.tsx` no tenía `zoomMeetingId` (`tsc --noEmit` fallaba, Vitest no); agregado.
+- Verificación: `lint`, `build`, `test:run` (194), `playwright` (7) y `tsc --noEmit` verdes. El navbar/panel no se probó logueado de verdad (magic link no automatizable).
+- **Pendiente del drift-check (verificado el 2026-09-19 contra el estado real)**: la migración `20260917220000` ya está aplicada en remoto, pero **falta** deployar la Edge Function `zoom-drift-check-dispatch`, cargar el secret `RESEND_API_KEY` en GitHub, y correr `gh workflow run zoom-drift-check.yml` una vez (nunca corrió) para verificar los selectores nuevos antes de marcar el ítem `[x]` en `ROADMAP.md`.
