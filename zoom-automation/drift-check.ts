@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { ZoomBrowserClient } from "./lib/zoom-browser";
 import { makeSupabase } from "./lib/outbox";
+import { pullSession, pushSession } from "./lib/session-store";
 import { sendAlertEmail } from "./lib/alert-email";
 import { newIssues } from "./lib/drift-diff";
 
@@ -73,6 +74,7 @@ async function main() {
     return startsAt >= now && startsAt <= until;
   });
 
+  await pullSession(supabase);
   const client = new ZoomBrowserClient();
   await client.open();
   try {
@@ -125,6 +127,9 @@ async function main() {
         detail: "Reunión real en la cuenta de Zoom sin ninguna ocurrencia asociada en la base.",
       });
     }
+
+    const state = await client.currentSessionIfActive();
+    if (state) await pushSession(supabase, state, "drift-check").catch((e) => console.error("[session]", e));
   } finally {
     await client.close();
   }

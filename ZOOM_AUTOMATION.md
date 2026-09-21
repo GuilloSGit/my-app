@@ -876,6 +876,15 @@ con el usuario, ver `PROGRESS.md` para el detalle completo):
 
 Desde 2026-09-19 el chequeo deja constancia de que entró de verdad: URL final, reuniones vistas en "Próximas", cuenta leída de `/profile` (solo evidencia), link a la corrida de GitHub Actions y captura de pantalla (artifact `zoom-session-check-evidence`). Es OK si se ve el botón de agendar **y** — cuando la base espera reuniones futuras en Zoom — la lista no está vacía. Corre solo cada 10hs (`20 0,10,20 * * *`) y manda mail si falla (transición a fallo o recordatorio cada 24 hs). Ver `PROGRESS.md` 2026-09-19.
 
+### Dónde vive la sesión (desde 2026-09-21)
+
+Antes cada corrida de CI restauraba la MISMA captura desde los secrets `ZOOM_SESSION_STATE_B64_*` y descartaba las cookies que Zoom renovaba: la sesión venció en 2-4hs (19/09 y 21/09). Ahora la fuente de verdad es la tabla `zoom_session_state` (una fila `id=1`, RLS sin policies → solo `service_role`, migración `20260921120000`):
+
+- `apply`, `check-session` y `drift-check` llaman a `pullSession` al arrancar (bajan la última versión) y a `pushSession` al terminar **solo si la sesión sigue activa** (`currentSessionIfActive` / `ok` del chequeo; nunca se guarda una sesión deslogueada). Código en `zoom-automation/lib/session-store.ts`.
+- `npm run zoom:upload-session` sube la captura nueva a la tabla (necesita `.env` local con `SUPABASE_SERVICE_ROLE_KEY`) y además sigue actualizando los secrets, que quedan solo como semilla si la tabla se vaciara.
+- La concurrency `zoom-account` evita que dos corridas lean/escriban a la vez.
+- **Sin verificar**: que renovar la sesión alcance para que dure días. Si igual vence en horas, la hipótesis siguiente es que Zoom la invalida por uso desde dos lugares.
+
 ### Cadena de crons (cada 10hs, desde 2026-09-19)
 
 Todo gratis: el repo es público (minutos de GitHub Actions ilimitados) y `pg_cron` es parte del free tier de Supabase. Corren encadenados, nunca a la vez — las tres automatizaciones comparten UNA sesión de Zoom, y un drift-check corrido mientras `reconcile` todavía aplica cambios compararía contra un estado a medias (falsas divergencias):
@@ -886,4 +895,4 @@ Todo gratis: el repo es público (minutos de GitHub Actions ilimitados) y `pg_cr
 | :20 | `zoom-session-check` (constancia + mail si falla) | GitHub Actions |
 | :30 | `zoom-drift-check` (mail solo por divergencias **nuevas**, ver `lib/drift-diff.ts`) | GitHub Actions |
 
-Los tres workflows comparten `concurrency: group: zoom-account` (`cancel-in-progress: false`): si GitHub demora un cron (pasa, es best-effort), se encolan en vez de pisarse. Mientras `reconcile`/apply corren cada 10hs, ya hacen de "wake-up call" de la sesión — pero no está garantizado que eso evite el vencimiento (el CI descarta las cookies renovadas al terminar); la constancia del chequeo de sesión va a mostrar cuánto dura realmente.
+Los tres workflows comparten `concurrency: group: zoom-account` (`cancel-in-progress: false`): si GitHub demora un cron (pasa, es best-effort), se encolan en vez de pisarse. Mientras `reconcile`/apply corren cada 10hs, ya hacen de "wake-up call" de la sesión — pero no está garantizado que eso evite el vencimiento (hasta 2026-09-21 el CI descartaba las cookies renovadas al terminar; ver "Dónde vive la sesión"); la constancia del chequeo de sesión va a mostrar cuánto dura realmente.

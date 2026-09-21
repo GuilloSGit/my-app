@@ -4,6 +4,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { SESSION_FILE, BASE_URL, eitherName, waitVisible } from "./lib/zoom-browser";
 import { makeSupabase } from "./lib/outbox";
+import { pullSession, pushSession } from "./lib/session-store";
+import { zoomOnlyStorageState } from "./lib/trim-session";
 import { sendAlertEmail, currentRunUrl, currentRunSource } from "./lib/alert-email";
 
 // Chequeo de la sesión guardada, para el botón "Verificar sesión" de
@@ -51,6 +53,7 @@ async function readAccountLabel(page: Page): Promise<string | null> {
 
 async function main() {
   const supabase = makeSupabase();
+  await pullSession(supabase);
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ storageState: SESSION_FILE });
   const page = await context.newPage();
@@ -93,6 +96,13 @@ async function main() {
       } else {
         ok = true;
         message = `Sesión activa — se vieron ${meetingsSeen} reunión(es) en "Próximas" (la base espera ${expected ?? 0}).`;
+      }
+
+      if (ok) {
+        // Sesión viva: guardar la versión renovada para la próxima corrida.
+        await pushSession(supabase, await zoomOnlyStorageState(context), "check-session").catch((e) =>
+          console.error("[session]", e),
+        );
       }
 
       accountLabel = await readAccountLabel(page);

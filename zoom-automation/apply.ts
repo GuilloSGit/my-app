@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { pullSession, pushSession } from "./lib/session-store";
 import { makeSupabase, dequeueJobs, completeJob, type ZoomOutboxRow } from "./lib/outbox";
 import { ZoomBrowserClient, type ZoomMeetingDesired } from "./lib/zoom-browser";
 
@@ -29,6 +30,7 @@ async function main() {
 
   console.log(`Dequeued ${jobs.length} job(s).`);
 
+  await pullSession(supabase);
   const client = new ZoomBrowserClient();
   await client.open();
 
@@ -67,6 +69,10 @@ async function main() {
         await completeJob(supabase, job.id, { success: false, error: message });
       }
     }
+    // Guarda la sesión renovada por Zoom (solo si sigue activa) — un fallo
+    // acá no debe tumbar una corrida cuyos jobs ya se completaron.
+    const state = await client.currentSessionIfActive();
+    if (state) await pushSession(supabase, state, "apply").catch((e) => console.error("[session]", e));
   } finally {
     await client.close();
   }

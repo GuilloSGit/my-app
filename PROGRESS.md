@@ -1618,3 +1618,11 @@ A pedido del usuario: el chequeo solo miraba que apareciera "Programar una reuni
 - **Cron diario** de `zoom-session-check.yml` (`0 11 * * *` UTC, 8:00 hora local) con **aviso por mail** si falla — solo en la transición a fallo o como recordatorio cada 24 hs (no un mail por corrida). Helper compartido `zoom-automation/lib/alert-email.ts` (también lo usa drift-check).
 - Tests: 203 (nuevos para la constancia en lib y en el panel). Sin verificar todavía: el selector del email en `/profile` (si no lo encuentra, `account_label` queda null y no pasa nada).
 - **Crons encadenados cada 10hs** (a pedido del usuario, todo gratis): `reconcile` :00 (pg_cron, ya existía) → `zoom-session-check` :20 → `zoom-drift-check` :30, en 00/10/20 UTC. Antes: session-check solo a demanda/diario y drift-check semanal (domingos). Los tres workflows comparten `concurrency: zoom-account` (comparten UNA sesión de Zoom, nunca dos a la vez) y el drift-check ahora avisa por mail **solo por divergencias nuevas** respecto de la corrida anterior (`lib/drift-diff.ts`, 5 tests) para no repetir el mismo mail 3 veces por día. Documentado en `ZOOM_AUTOMATION.md` ("Cadena de crons").
+
+## 2026-09-21 — Sesión de Zoom persistida y renovada en la base
+
+La sesión venció en 2-4hs dos veces seguidas (19/09 y 21/09: check OK a las 04:57 UTC, drift-check caído a las 05:17). Causa probable: cada corrida partía de la misma captura de los secrets y tiraba las cookies renovadas.
+
+- Nueva tabla `zoom_session_state` (migración `20260921120000`, aplicada) + `lib/session-store.ts` (`pullSession`/`pushSession`). Los tres scripts bajan la sesión al arrancar y suben la renovada al terminar si sigue activa; `upload-session` también la siembra en la tabla.
+- Tests: `__tests__/zoom/session-store.test.ts` (preserva la sesión local real). Verificación: tsc (raíz y zoom-automation), lint, build, 212 tests.
+- **Pendiente**: recapturar (`zoom:capture-session`) y correr `zoom:upload-session` para sembrar la tabla; después ver en `zoom_session_checks` cuánto dura. Detalle en `ZOOM_AUTOMATION.md` ("Dónde vive la sesión"). También pendiente: que "Verificar sesión" falle (exit 1) cuando `ok=false`.

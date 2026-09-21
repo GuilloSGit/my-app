@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import "dotenv/config";
 import { SESSION_FILE } from "./lib/zoom-browser";
+import { makeSupabase } from "./lib/outbox";
+import { pushSessionFile } from "./lib/session-store";
 
 // Reemplaza la secuencia manual (base64 | tr -d '\n' > ..., split -b 20000
 // -d -a 2 ..., loop de `gh secret set`) que se corrió a mano el
@@ -23,7 +26,12 @@ function chunk(str: string, size: number): string[] {
   return parts;
 }
 
-function main() {
+async function main() {
+  // Fuente de verdad desde 2026-09-21: la base (los workflows la leen y la
+  // renuevan solos). Los secrets siguen subiéndose abajo como semilla de
+  // respaldo por si la tabla se vaciara.
+  await pushSessionFile(makeSupabase(), "upload-session");
+
   const raw = readFileSync(SESSION_FILE);
   const b64 = raw.toString("base64");
   const parts = chunk(b64, CHUNK_SIZE);
@@ -65,4 +73,7 @@ function main() {
   console.log("\nListo — los secrets de GitHub quedaron actualizados.");
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

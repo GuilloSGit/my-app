@@ -2,6 +2,7 @@ import { chromium, type Browser, type BrowserContext, type Locator, type Page } 
 import { fromZonedTime } from "date-fns-tz";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { zoomOnlyStorageState } from "./trim-session";
 
 export interface ZoomMeetingDesired {
   topic: string;
@@ -190,6 +191,27 @@ export class ZoomBrowserClient {
   async open(): Promise<void> {
     this.browser = await chromium.launch({ headless: process.env.ZOOM_HEADFUL !== "1" });
     this.context = await this.browser.newContext({ storageState: SESSION_FILE });
+  }
+
+  // Devuelve el estado de sesión renovado SOLO si sigue activa (si venció,
+  // devolverlo pisaría una sesión buena con una deslogueada). null = no
+  // guardar. Ver session-store.ts.
+  async currentSessionIfActive(): Promise<Awaited<ReturnType<typeof zoomOnlyStorageState>> | null> {
+    if (!this.context) return null;
+    const page = await this.openPage();
+    try {
+      await page.goto(`${BASE_URL}/meeting#/upcoming`);
+      const active = await waitVisible(
+        page.getByRole("button", { name: eitherName("Schedule a Meeting", "Programar una reunión") }),
+        15_000,
+      );
+      if (!active || /\/signin/.test(page.url())) return null;
+      return await zoomOnlyStorageState(this.context);
+    } catch {
+      return null;
+    } finally {
+      await page.close();
+    }
   }
 
   async close(): Promise<void> {
