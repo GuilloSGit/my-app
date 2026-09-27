@@ -417,6 +417,41 @@ sección `## Tests`):
   misma clave (`ZoomBrowserClient.FIXED_PASSCODE`, "001914")** — a pedido
   explícito del usuario, no es opcional. No dejar que Zoom genere una
   clave al azar sin pisarla.
+- **El banner de cookies de Zoom (OneTrust, `cdn.cookielaw.org`) puede
+  romper la SPA entera (2026-09-27)**: cuando su fetch de config falla por
+  CORS, tira una excepción sin atrapar (`Cannot read properties of
+  undefined (reading 'DomainData')`) que deja la página en blanco para
+  siempre — reproducido tanto en Playwright como en un Chrome real del
+  usuario, o sea que no es específico de la automatización. `open()`
+  bloquea el dominio entero con `context.route(/cookielaw\.org/, ... .abort())`
+  antes de que ese script llegue a correr — no hace falta el banner para
+  reusar una sesión ya logueada.
+- **Las transiciones client-side de la SPA de Zoom se rompen
+  intermitentemente y dejan la pestaña sin usar para siempre** ("Transition
+  was skipped" en la consola) — pasó tanto al clickear "Schedule a
+  Meeting" desde `#/upcoming` como, ya arreglado eso, al leer "Copy
+  Invitation" en la MISMA pestaña justo después de que "Save" navegara
+  sola a `/meeting/{id}` — reproducido 100% de las veces las dos veces.
+  **Patrón que sí funciona siempre**: navegación real, nunca depender de
+  un click que dispara routing interno. `createMeeting` va directo a
+  `${BASE_URL}/meeting/schedule?from=upcoming` (nunca pasa por
+  `#/upcoming` + click) y, después de "Save", **cierra esa pestaña y abre
+  una nueva** (`recoverInvitation(zoomMeetingId)`, que hace `page.goto`
+  fresco a `/meeting/{id}`) en vez de seguir leyendo la invitación desde
+  la pestaña que acaba de navegar. Si aparece un timeout nuevo de
+  Playwright del tipo "waiting for element to be visible, enabled and
+  stable" en cualquier paso posterior a un click que cambia de URL en esta
+  cuenta, sospechar primero de este patrón antes de tocar el selector.
+- **Cuidado al reintentar un `create` que falló**: `createMeeting` guarda
+  la reunión en Zoom (el "Save") ANTES de leer la invitación — si falla
+  después de eso (ver el gotcha de arriba), la reunión ya existe en Zoom
+  aunque el job siga `pending`/`FALLÓ` y `meeting_occurrences` no tenga
+  `zoom_meeting_id`. Reintentar sin chequear primero (`listMeetingIds` +
+  `readMeetingSummary` para encontrar la huérfana por tema/fecha) crea una
+  **segunda** reunión duplicada para la misma ocurrencia — pasó de verdad
+  el 2026-09-27 con la reunión del martes 20/10. Antes de cualquier
+  reintento manual de un `create` que ya falló una vez, listar la cuenta
+  primero.
 - **Nunca prefijar `NEXT_PUBLIC_` a una clave `service_role` u otro secreto
   real.** Cualquier variable `NEXT_PUBLIC_*` se inlinea en el bundle del
   cliente en `next build` — con `output: 'export'` eso significa que queda

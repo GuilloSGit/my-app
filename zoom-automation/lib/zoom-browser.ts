@@ -191,6 +191,13 @@ export class ZoomBrowserClient {
   async open(): Promise<void> {
     this.browser = await chromium.launch({ headless: process.env.ZOOM_HEADFUL !== "1" });
     this.context = await this.browser.newContext({ storageState: SESSION_FILE });
+    // El banner de cookies (OneTrust, cdn.cookielaw.org) viene tirando una
+    // excepción sin atrapar cuando su fetch de config falla por CORS (visto
+    // 2026-09-27, en un Chrome real del usuario también, no solo acá) — deja
+    // la SPA de Zoom en blanco para siempre. No hace falta el banner para
+    // reusar una sesión ya logueada, así que se bloquea el dominio entero
+    // antes de que su script llegue a correr.
+    await this.context.route(/cookielaw\.org/, (route) => route.abort());
   }
 
   // Devuelve el estado de sesión renovado SOLO si sigue activa (si venció,
@@ -392,17 +399,31 @@ export class ZoomBrowserClient {
     return parseInvitation(text);
   }
 
+  // Recuperación para cuando `createMeeting` guardó la reunión en Zoom
+  // pero se cayó ANTES de leer la invitación (ej. el timeout de
+  // "Copy Invitation" visto 2026-09-27): la reunión ya existe, esto solo
+  // relee sus datos desde una carga de página fresca (evita reintentar
+  // `createMeeting` y duplicarla).
+  async recoverInvitation(zoomMeetingId: number): Promise<{ joinUrl: string; passcode: string | null; meetingId: number }> {
+    const page = await this.openPage();
+    try {
+      await page.goto(`${BASE_URL}/meeting/${zoomMeetingId}`);
+      return await this.readInvitation(page);
+    } finally {
+      await page.close();
+    }
+  }
+
   async createMeeting(desired: ZoomMeetingDesired): Promise<ZoomMeetingResult> {
     const page = await this.openPage();
     try {
-      // "networkidle" no es confiable en este SPA (websockets/telemetría
-      // que nunca terminan) — se espera un elemento concreto en su lugar.
-      await page.goto(`${BASE_URL}/meeting#/upcoming`);
-      // "Programar una reunión" confirmado contra el DOM real (captura de
-      // pantalla del usuario, 2026-09-14).
-      await page
-        .getByRole("button", { name: eitherName("Schedule a Meeting", "Programar una reunión") })
-        .click({ timeout: 30_000 });
+      // Antes navegaba a `#/upcoming` y clickeaba "Schedule a Meeting" —
+      // esa transición client-side de la SPA se rompe intermitentemente
+      // ("Transition was skipped" en la consola, página en blanco para
+      // siempre) — visto 2026-09-27 tanto acá como en un Chrome real del
+      // usuario. Yendo directo a la URL del form se evita la transición
+      // rota por completo (verificado contra la cuenta real).
+      await page.goto(`${BASE_URL}/meeting/schedule?from=upcoming`);
 
       // "Tema" sin confirmar contra el DOM real todavía.
       await page.getByRole("textbox", { name: eitherName("Topic", "Tema") }).fill(desired.topic);
@@ -420,7 +441,15 @@ export class ZoomBrowserClient {
       await page.waitForURL(/\/meeting\/\d+/, { timeout: 15_000 });
 
       const zoomMeetingId = extractMeetingIdFromUrl(page.url());
-      const { joinUrl, passcode } = await this.readInvitation(page);
+      // Mismo problema que el click de "Schedule a Meeting": la navegación
+      // que dispara "Save" es client-side y deja ESA pestaña inestable para
+      // el click siguiente ("Copy Invitation" nunca queda "stable" —
+      // reproducido 100% de las veces, 2026-09-27, incluso recargando la
+      // misma pestaña con `page.goto` a la misma URL en la que ya está).
+      // `recoverInvitation` (pestaña nueva desde cero) sí funciona siempre
+      // — se reusa acá en vez de seguir en `page`.
+      await page.close();
+      const { joinUrl, passcode } = await this.recoverInvitation(zoomMeetingId);
 
       return { zoomMeetingId, joinUrl, passcode };
     } catch (e) {
