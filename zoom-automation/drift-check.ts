@@ -34,6 +34,7 @@ interface TrackedOccurrenceRow {
   topic: string;
   starts_at: string;
   duration_minutes: number;
+  status: string;
   meeting_schedules: { timezone: string } | { timezone: string }[] | null;
 }
 
@@ -61,7 +62,7 @@ async function main() {
   // más adelante en el calendario.
   const { data: allTrackedRows, error: allTrackedError } = await supabase
     .from("meeting_occurrences")
-    .select("id, zoom_meeting_id, topic, starts_at, duration_minutes, meeting_schedules(timezone)")
+    .select("id, zoom_meeting_id, topic, starts_at, duration_minutes, status, meeting_schedules(timezone)")
     .not("zoom_meeting_id", "is", null);
   if (allTrackedError) throw new Error(`No se pudo leer meeting_occurrences: ${allTrackedError.message}`);
 
@@ -71,7 +72,9 @@ async function main() {
   const until = new Date(now.getTime() + HORIZON_DAYS * 24 * 60 * 60 * 1000);
   const toVerify = (allTrackedRows as TrackedOccurrenceRow[]).filter((row) => {
     const startsAt = new Date(row.starts_at);
-    return startsAt >= now && startsAt <= until;
+    // Las canceladas conservan su zoom_meeting_id pero ya no existen en Zoom
+    // (se cancelaron a propósito): no hay nada que verificar.
+    return row.status !== "cancelled" && startsAt >= now && startsAt <= until;
   });
 
   await pullSession(supabase);
