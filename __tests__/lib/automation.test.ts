@@ -117,6 +117,18 @@ describe("getUpcomingOccurrences", () => {
     expect(occurrence.scheduleKind).toBe("weekend");
   });
 
+  it("graceMinutes retrasa el corte inferior para que una reunión en curso siga visible", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-17T22:10:00.000Z"));
+    const chain = makeChain({ data: [] });
+    mockFrom.mockReturnValue(chain);
+
+    await getUpcomingOccurrences(35, 45);
+
+    expect(chain.gte).toHaveBeenCalledWith("starts_at", "2026-09-17T21:25:00.000Z");
+    vi.useRealTimers();
+  });
+
   it("borde: sin embed, no explota (default a midweek)", async () => {
     mockFrom.mockReturnValue(makeChain({ data: [{ ...baseRow, meeting_schedules: null }] }));
 

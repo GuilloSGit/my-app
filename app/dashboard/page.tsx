@@ -30,13 +30,14 @@ const itemVariants = {
 };
 
 // Mismo criterio que usaba getUpcomingMeetings (lib/meetings.ts, flujo
-// manual viejo): una reunión sigue visible hasta 2h después de empezar,
-// no desaparece apenas arranca. Filtro acá, no en getUpcomingOccurrences
-// (esa función la sigue usando /dashboard/automatizacion, que necesita ver
-// TODOS los estados — pending/blocked/cancelled también).
+// manual viejo): una reunión sigue visible un rato después de empezar (para
+// poder recuperar el link con la reunión en curso), no desaparece apenas
+// arranca. El mismo margen se pasa a getUpcomingOccurrences, que si no corta
+// en `starts_at >= now` antes de que este filtro llegue a aplicarse.
+const GRACE_MINUTES = 45;
 function isVisibleToCongregation(occurrence: Occurrence): boolean {
   if (occurrence.status !== "synced") return false;
-  const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+  const cutoff = Date.now() - GRACE_MINUTES * 60 * 1000;
   return new Date(occurrence.startsAt).getTime() >= cutoff;
 }
 
@@ -67,7 +68,7 @@ function DashboardContent() {
 
   // Recargar reuniones
   const refreshOccurrences = useCallback(async () => {
-    const upcoming = await getUpcomingOccurrences();
+    const upcoming = await getUpcomingOccurrences(undefined, GRACE_MINUTES);
     setOccurrences(upcoming.filter(isVisibleToCongregation));
     setRefreshKey((prev) => prev + 1);
   }, []);

@@ -166,14 +166,22 @@ function rowToOccurrence(row: OccurrenceRow): Occurrence {
 // Horizonte de la vista de mes: coincide con el horizonte de 1 mes que ya
 // usa `reconcileMonth` (ver supabase/functions/_shared/reconciler/reconcile.ts)
 // — no tiene sentido mostrar más de lo que el reconciliador va a calcular.
-export async function getUpcomingOccurrences(daysAhead = 35): Promise<Occurrence[]> {
+//
+// `graceMinutes`: cuánto después de empezar una reunión sigue apareciendo
+// (por defecto 0). Sin esto la consulta cortaba en `starts_at >= now` y el
+// link desaparecía apenas arrancaba la reunión.
+export async function getUpcomingOccurrences(
+  daysAhead = 35,
+  graceMinutes = 0,
+): Promise<Occurrence[]> {
   const now = new Date();
+  const from = new Date(now.getTime() - graceMinutes * 60 * 1000);
   const until = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
   const { data, error } = await supabase
     .from("meeting_occurrences")
     .select("*, meeting_schedules(kind)")
-    .gte("starts_at", now.toISOString())
+    .gte("starts_at", from.toISOString())
     .lte("starts_at", until.toISOString())
     .order("starts_at", { ascending: true });
 
