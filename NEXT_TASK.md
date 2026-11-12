@@ -5,7 +5,7 @@
 > 2026-10-10.
 
 ```
-Continuamos con my-app (Congregación Media Agua). Estado: todo commiteado y pusheado a master, sesión de Zoom recapturada y activa el 10/10, reuniones hasta el 14/11 creadas y sincronizadas.
+Continuamos con congre-zoom (Congregación Media Agua). Estado: todo commiteado y pusheado a master, sesión de Zoom recapturada y activa el 10/10, reuniones hasta el 14/11 creadas y sincronizadas.
 
 COMPLETADO (2026-10-10):
 - Sesión de Zoom vencida: recapturada con `zoom:capture-session` + `zoom:upload-session`; `check-session` ok.

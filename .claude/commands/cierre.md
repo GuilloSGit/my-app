@@ -1,6 +1,6 @@
-# /cierre — Cierre de sesión de trabajo (my-app)
+# /cierre — Cierre de sesión de trabajo (congre-zoom, repo `my-app`)
 
-Checklist de cierre para **my-app** (Congregación Media Agua — Next.js 14 +
+Checklist de cierre para **congre-zoom** (Congregación Media Agua — Next.js 14 +
 Supabase, deploy a GitHub Pages). Un solo repo, un solo push. Ejecutá todo en
 orden y reportá cada paso antes de pasar al siguiente.
 
@@ -30,7 +30,7 @@ produce docs desincronizados entre sí.
 
 ## 1. Estado git
 
-Repo: `/Users/guillermoandrada/my-app`.
+Repo: `/Users/guillermoandrada/Projects/my-app`.
 
 ```bash
 git status --short
@@ -145,7 +145,7 @@ Generá un prompt completo y autónomo y **guardalo sobrescribiendo `NEXT_TASK.m
 fecha de "Última actualización"). Mostralo además en la respuesta final:
 
 ```
-Continuamos con my-app (Congregación Media Agua). Estado actual: <resumen breve>.
+Continuamos con congre-zoom (Congregación Media Agua). Estado actual: <resumen breve>.
 
 COMPLETADO esta sesión:
 - <lista>

@@ -1,4 +1,4 @@
-# AGENTS.md — my-app
+# AGENTS.md — congre-zoom (repo `my-app`)
 
 > Creado 2026-07-05. Para el "qué es y cómo está armado" ver `ARCHITECTURE.md`.
 > Este doc es sobre **cómo trabajar** en el repo: comandos, verificación,

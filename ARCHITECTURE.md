@@ -1,4 +1,4 @@
-# Arquitectura — my-app (Congregación Media Agua)
+# Arquitectura — congre-zoom (Congregación Media Agua; repo `my-app`)
 
 > Creado 2026-07-05. Describe el estado real del sistema a esa fecha, no un
 > diseño aspiracional. Si algo de acá queda desactualizado, corregirlo en vez
@@ -8,7 +8,7 @@
 
 PWA para que una congregación acceda a los datos de Zoom (link, ID,
 contraseña) de sus reuniones semanales, y para que un admin las cargue/edite.
-Nombre npm: `zoom-links`. Sin backend propio: es una SPA estática (Next.js
+Nombre npm: `congre-zoom` (el repo y la URL de Pages siguen siendo `my-app` a propósito). Sin backend propio: es una SPA estática (Next.js
 `output: export`) que habla directo con Supabase.
 
 ## Stack

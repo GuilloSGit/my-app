@@ -128,3 +128,11 @@ Revisar la versión de Node — Vitest 4 necesita ≥20 (ver arriba).
 - Puede tardar 1-2 minutos en propagar tras un deploy exitoso.
 - Confirmar en `gh run list` / `gh run view` que el run terminó en verde
   (test ✓ build ✓ deploy ✓), no asumirlo.
+
+## Nota sobre el nombre
+
+El proyecto se llama **congre-zoom** (`package.json`), pero el repo de GitHub
+sigue siendo `my-app` a propósito: renombrarlo cambia la URL de Pages
+(`/my-app/`), rompe el `scope` de la PWA instalada y obliga a tocar
+`basePath`, `manifest.json`, `sw.js`, `dispatch-workflow.ts` y las Redirect
+URLs de Supabase Auth. La carpeta local tampoco se renombra.
