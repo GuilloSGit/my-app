@@ -1648,3 +1648,9 @@ Arrancó por un mail de GitHub Actions: `zoom-drift-check` fallando ("sesión ve
 - **Bug de `drift-check.ts`**: verificaba también las ocurrencias `cancelled` (conservan `zoom_meeting_id` pero ya no existen en Zoom) y reventaba con "no se encontró el link Edit" para la del 22/10 (cancelada a propósito por la visita del superintendente). Ahora las excluye de la verificación. Resultado: 0 divergencias.
 - Verificación: lint, build, Vitest (212), tsc (raíz y zoom-automation) y Playwright (7), todo verde.
 - **Dato medido** (`zoom_session_checks`): tras sembrar la tabla el 27/9, la sesión dio ok hasta el 29/9 00:23 UTC y falló desde el 29/9 16:32 UTC — dura ~2 días, NO semanas. Los chequeos estuvieron en rojo ~11 días hasta la recaptura del 10/10. Pendiente: decidir cómo manejarlo (alerta más agresiva, recaptura periódica, o login scripteado).
+
+## 2026-11-12 — Auditoría post-mudanza, renombre a congre-zoom y fix del link en curso
+
+- Proyecto renombrado a `congre-zoom` solo en package.json y docs; el repo `my-app` y la URL de Pages se mantienen (renombrar rompe la PWA instalada, `basePath`, `dispatch-workflow.ts` y las Redirect URLs de Supabase Auth). Ver nota en `GITHUB_PAGES.md`.
+- Fix `496f162`: `/dashboard` mantiene la card completa 45 min después del `starts_at` (antes desaparecía al empezar la reunión porque la consulta cortaba en `starts_at >= now`). `getUpcomingOccurrences` ganó el parámetro `graceMinutes` (default 0; automatización no cambia). +1 test (213 en total).
+- Auditoría solo lectura: 4 workflows y el cron `reconcile-every-10-hours` sin fallos; ocurrencias hasta el 12/12, outbox 34/34 `done`; 87 session-checks ok desde el 10/10.

@@ -129,13 +129,12 @@ pantalla.
 ## Memoria de proyecto (fuera del repo)
 
 Hay memoria persistida en
-`~/.claude/projects/-Users-guillermoandrada-my-app/memory/`
-(`project_my_app.md`, `feedback_verify_before_push.md`) con contexto de
-sesiones anteriores — incidentes, decisiones tomadas, por qué. Consultarla si
-está disponible; no es parte del repo así que no se pushea. (El repo se movió
-de `.../Projects/my-app` a `.../my-app` en 2026-09 — la memoria vieja quedó
-en `~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`, ya
-migrada acá.)
+`~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`
+(`project_my_app.md`, `feedback_*.md`) con contexto de sesiones anteriores —
+incidentes, decisiones tomadas, por qué. Consultarla si está disponible; no
+es parte del repo así que no se pushea. (El repo estuvo un tiempo en
+`~/my-app`; desde 2026-11 vive de nuevo en `~/Projects/my-app` y la memoria
+vigente es la de esa ruta.)
 
 ## Cierre de sesión
 

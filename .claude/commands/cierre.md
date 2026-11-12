@@ -48,14 +48,12 @@ Pay Alert), mencionalo explícitamente.
 ## 2. Actualizar memoria del proyecto
 
 Memoria en:
-`~/.claude/projects/-Users-guillermoandrada-my-app/memory/`
-(el repo se movió de `.../Projects/my-app` a `.../my-app` — si alguna vez
-aparece contenido relevante en la ruta vieja
-`~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`,
-migrarlo acá, no seguir escribiendo en la vieja).
+`~/.claude/projects/-Users-guillermoandrada-Projects-my-app/memory/`
+(la ruta del repo es `~/Projects/my-app`; la ruta vieja `-Users-guillermoandrada-my-app`
+ya no existe).
 
 Archivos existentes: `project_my_app.md` (estado del proyecto, incidentes,
-gotchas técnicos) y `feedback_verify_before_push.md` (hábito de verificación).
+gotchas técnicos, ~59 KB: **no leer entero**, usar `grep -n '^## '` + `sed -n`) y los `feedback_*.md`.
 
 - Agregá al `project_my_app.md` lo nuevo de la sesión: features, bugs
   resueltos, decisiones técnicas, incidentes de infra (ej. Supabase pausado).
