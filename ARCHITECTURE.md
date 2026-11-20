@@ -13,7 +13,7 @@ Nombre npm: `congre-zoom` (el repo y la URL de Pages siguen siendo `my-app` a pr
 
 ## Stack
 
-- **Next.js 14** (App Router), **React 18**, TypeScript estricto.
+- **Next.js 16** (App Router), **React 19**, TypeScript estricto.
 - **Tailwind CSS** + **Framer Motion** para animaciones.
 - **Supabase**: Postgres (tabla `meetings`, con RLS) + Auth (magic link/OTP).
 - **Vitest** (unitarios + integración + componentes con React Testing
