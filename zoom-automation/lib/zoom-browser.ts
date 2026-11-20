@@ -115,6 +115,16 @@ export function eitherName(en: string, es: string): RegExp {
   return new RegExp(`${escape(en)}|${escape(es)}`);
 }
 
+// "Edit"/"Editar" de la vista de detalle de una reunión. Hasta 2026-11 era un
+// <a> (role link); Zoom lo cambió a <button> (verificado 2026-11-20 contra la
+// cuenta real). Se acepta cualquiera de los dos y el nombre va ANCLADO: la
+// página también tiene el botón "Edit global Dial-in Countries/Regions", que
+// el substring de `eitherName` haría matchear (strict-mode violation).
+export function editControl(page: Page): Locator {
+  const exact = /^\s*(Edit|Editar)\s*$/;
+  return page.getByRole("button", { name: exact }).or(page.getByRole("link", { name: exact }));
+}
+
 // Inversa de `zoomDateOptionLabel`/`zoomTimeOptionLabel`: parsea el texto
 // que muestran esos mismos comboboxes ya cerrados (leídos por
 // `readMeetingSummary`, sin haberlos tocado) de vuelta a un `Date`. Acepta
@@ -471,8 +481,7 @@ export class ZoomBrowserClient {
       // usuario, 2026-09-14) — causa raíz de por qué esto tiraba timeout:
       // la cuenta mostraba la UI en español y este selector solo buscaba
       // "Edit".
-      const editName = eitherName("Edit", "Editar");
-      await page.getByRole("link", { name: editName }).click({ timeout: 30_000 });
+      await editControl(page).click({ timeout: 30_000 });
 
       await page.getByRole("textbox", { name: eitherName("Topic", "Tema") }).fill(desired.topic);
       await this.setDate(page, desired.startsAt, desired.timezone);
@@ -489,7 +498,7 @@ export class ZoomBrowserClient {
       // (confirmado reproduciendo el bug real: sin este wait, el guardado
       // se aborta a mitad de camino porque la página se cierra antes de
       // que la request termine).
-      await page.getByRole("link", { name: editName }).waitFor({ state: "visible", timeout: 15_000 });
+      await editControl(page).waitFor({ state: "visible", timeout: 15_000 });
     } catch (e) {
       await this.screenshotOnFailure(page, "update");
       throw e;
@@ -627,7 +636,17 @@ export class ZoomBrowserClient {
         const href = await link.getAttribute("href");
         const idMatch = href?.match(/^\/s\/(\d+)/);
         if (!idMatch) continue;
-        items.push({ zoomMeetingId: Number(idMatch[1]), topic: (await link.innerText()).trim() });
+        // Desde 2026-11 el link /s/<id> es el botón "Start", no el título (antes
+        // innerText daba el tema). El título está en `.topic` del mismo
+        // `.meeting-item`; si ese layout vuelve a cambiar se cae al aria-label
+        // ("Start <tema>") sin el prefijo.
+        const topic = await link.evaluate((el) => {
+          const fromItem = el.closest(".meeting-item")?.querySelector(".topic")?.textContent?.trim();
+          if (fromItem) return fromItem;
+          const label = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim();
+          return label.replace(/^(Start|Iniciar)\s+/i, "");
+        });
+        items.push({ zoomMeetingId: Number(idMatch[1]), topic });
       }
       return items;
     } catch (e) {
@@ -652,8 +671,7 @@ export class ZoomBrowserClient {
     const page = await this.openPage();
     try {
       await page.goto(`${BASE_URL}/meeting/${zoomMeetingId}`);
-      const editName = eitherName("Edit", "Editar");
-      const editLink = page.getByRole("link", { name: editName });
+      const editLink = editControl(page);
 
       if (!(await waitVisible(editLink, 8000))) {
         // El login NO es "la reunión ya no existe": sesión vencida tiene que
