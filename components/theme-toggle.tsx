@@ -3,7 +3,7 @@
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 export function ThemeToggle() {
   // `theme` puede quedar en "system" (el default) hasta que el usuario elige
@@ -11,9 +11,12 @@ export function ThemeToggle() {
   // realmente aplicado y el primer click no coincide con lo que se ve en
   // pantalla. `resolvedTheme` siempre da el modo efectivo (light/dark).
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  // false en SSR/hidratación, true ya en el cliente (evita setState en un effect).
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   if (!mounted) {
     return <div className="w-9 h-9" />;

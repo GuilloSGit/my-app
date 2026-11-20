@@ -126,6 +126,8 @@ function AutomatizacionContent() {
   }, []);
 
   useEffect(() => {
+    // Carga inicial de datos remotos: refresh() setea estado al resolver.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (userIsAdmin) refresh();
   }, [userIsAdmin, refresh]);
 
