@@ -2,19 +2,20 @@
 
 > Lo sobrescribe `/cierre` (paso 6) al final de cada sesión. Para retomar,
 > pegar el bloque de abajo como primer mensaje. Última actualización:
-> 2026-11-20.
+> 2026-11-21.
 
 ```
-Continuamos con congre-zoom (Congregación Media Agua; repo de GitHub `my-app`, carpeta ~/Projects/my-app). Estado: master tiene el fix de la UI de Zoom (fba28ef, pusheado). La rama `chore/migrar-next-16` (Next 16/React 19/ESLint 9) está verde pero SIN mergear ni pusheada a master.
+Continuamos con congre-zoom (Congregación Media Agua; repo de GitHub `my-app`, carpeta ~/Projects/my-app). Estado: master (56ec03b) tiene el fix de la UI de Zoom y la migración a Next 16/React 19/ESLint 9, ya desplegada en Pages (test/build/deploy verdes). La rama de migración se borró. Sesión de Zoom recapturada el 21/11 y drift-check manual OK (0 divergencias).
 
 COMPLETADO (2026-11-20):
 - Sesión de Zoom recapturada (la hizo el usuario) tras `readMeetingSummary` → /signin.
 - Zoom cambió su UI: "Edit" pasó de link a botón; el `/s/<id>` de la lista es "Start". Fix con `editControl()` en zoom-browser.ts. Verificado headed en local: lectura, Schedule (selectores) y diálogo Delete (cerrado con Cancel).
-- Dependencias al día; migración a Next 16 en rama (lint/tsc/213 tests/build/7 e2e verdes, npm audit 0).
+- Dependencias al día; migración a Next 16 mergeada y desplegada (lint/tsc/213 tests/build/7 e2e verdes, npm audit 0); /dashboard y /automatizacion revisados a ojo por el usuario.
+- 21/11: la sesión de Zoom volvió a vencer ~17 h después de la captura (también la copia local); causa NO confirmada (¿uso local simultáneo con CI? ¿el cron de 10:20Z no corre?). Recapturada y drift-check OK.
 
 PRÓXIMAS PRIORIDADES:
-1. Confirmar que el drift-check de GitHub Actions volvió a andar en master (`gh run list --workflow zoom-drift-check.yml`; disparar a mano si hace falta).
-2. Revisar a ojo `/dashboard` y `/dashboard/automatizacion` en la rama (`npm run dev`, login por magic link) y, si está bien, mergear a master (deploy.yml despliega a Pages al pushear master; confirmar test ✓ build ✓ deploy ✓).
+1. Vigilar la sesión de Zoom: si vuelve a vencer sin uso, investigar por qué el session-check programado corre solo ~2 veces al día (slots 10:20Z/10:30Z no aparecen) y no usar la sesión del CI en local (capturar una aparte para inspeccionar la UI).
+2. Confirmar que el deploy publicado anda en la PWA instalada (el service worker puede servir la versión vieja hasta recargar).
 3. Probar contra Zoom real los clicks finales de create ("Save") y cancel ("Delete") creando y borrando UNA reunión de prueba — pedir OK al usuario antes. Hay un TODO(codegen) en createMeeting.
 4. La lista de Próximas pasó de 9 a 11 reuniones durante la sesión; no se investigó el origen (probable cron/reconcile). Confirmar que no hay duplicados.
 5. Pendientes viejos: redeploy de `exception-create` (cosmético, requiere OK); confirmar con el usuario la reunión del 24/10.
