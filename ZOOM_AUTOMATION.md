@@ -54,7 +54,7 @@ depende de este principio.
 
 El spec funcional original (con el que arrancó esta feature) asumía un
 backend Fastify + PostgreSQL + cron de sistema + pg-boss. **Ese backend no
-existe en este repo.** `my-app` es un Next.js 14 con `output: 'export'`
+existe en este repo.** `my-app` es un Next.js 16 con `output: 'export'`
 servido estático desde GitHub Pages — no hay proceso propio corriendo
 nunca, solo el browser hablando directo con Supabase (Auth + Postgres +
 RLS) con la anon key. Se detectó el conflicto explorando el repo antes de

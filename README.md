@@ -17,7 +17,7 @@ Plataforma web para gestionar y compartir los enlaces de Zoom de las reuniones d
 
 | Capa | Tecnología |
 |---|---|
-| Framework | Next.js 14 (App Router, static export) |
+| Framework | Next.js 16 (App Router, static export) |
 | Estilos | Tailwind CSS |
 | Animaciones | Framer Motion |
 | Autenticación | Supabase Auth (OTP magic link) |

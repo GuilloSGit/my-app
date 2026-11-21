@@ -1654,3 +1654,10 @@ Arrancó por un mail de GitHub Actions: `zoom-drift-check` fallando ("sesión ve
 - Proyecto renombrado a `congre-zoom` solo en package.json y docs; el repo `my-app` y la URL de Pages se mantienen (renombrar rompe la PWA instalada, `basePath`, `dispatch-workflow.ts` y las Redirect URLs de Supabase Auth). Ver nota en `GITHUB_PAGES.md`.
 - Fix `496f162`: `/dashboard` mantiene la card completa 45 min después del `starts_at` (antes desaparecía al empezar la reunión porque la consulta cortaba en `starts_at >= now`). `getUpcomingOccurrences` ganó el parámetro `graceMinutes` (default 0; automatización no cambia). +1 test (213 en total).
 - Auditoría solo lectura: 4 workflows y el cron `reconcile-every-10-hours` sin fallos; ocurrencias hasta el 12/12, outbox 34/34 `done`; 87 session-checks ok desde el 10/10.
+
+## 2026-11-20 — Sesión de Zoom recapturada, UI de Zoom cambiada y migración a Next 16
+
+- **Sesión vencida** (`readMeetingSummary` → redirigió a /signin): recapturada con `zoom:capture-session` + `zoom:upload-session` (la hizo el usuario).
+- **Zoom cambió su UI** (ver gotcha en ARCHITECTURE.md): "Edit" pasó de link a botón y el `/s/<id>` de la lista es ahora "Start". Fix `fba28ef` (en master, pusheado): `editControl()` + tema desde `.topic`. Verificado en local con `ZOOM_HEADFUL=1` y comprobación segura de Schedule/Delete (sin Save ni Delete real).
+- **Dependencias:** `npm update` en rango (Playwright 1.65 → hubo que correr `npx playwright install chromium`) y migración en la rama `chore/migrar-next-16` (sin mergear): Next 16, React 19, ESLint 9 con `eslint.config.mjs`, `lint` = `eslint .`, next-themes 0.4, lucide 1.x, framer-motion 14. `npm audit`: 0 vulnerabilidades. Arreglos: tipo de `ease`, `ThemeToggle` con `useSyncExternalStore`, `Link` en login (el `<a href="/">` ignoraba el basePath), `<div>` dentro de `<p>` en el dashboard, `data-scroll-behavior`, 2 `eslint-disable` de `set-state-in-effect` con motivo.
+- Verificación en la rama: lint, tsc (+ zoom-automation), Vitest 213, build y Playwright 7, verdes. Páginas públicas revisadas a ojo; `/dashboard` y `/dashboard/automatizacion` pendientes (requieren login).

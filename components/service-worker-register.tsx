@@ -44,6 +44,8 @@ export function ServiceWorkerRegister() {
         });
       } else {
         if (process.env.NODE_ENV === 'development') {
+          // Detección de capacidad del navegador: solo se conoce en el cliente.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setShowInstallButton(true);
         }
       }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { CalendarLogo } from "@/components/calendar-logo";
@@ -141,9 +142,9 @@ export default function LoginPage() {
 
             <p className="text-center text-xs text-slate-400 dark:text-zinc-500 mt-6">
               ¿No tenés acceso?{" "}
-              <a href="/" className="text-media-agua hover:underline">
+              <Link href="/" className="text-media-agua hover:underline">
                 Contacta al administrador
-              </a>
+              </Link>
             </p>
           </div>
         </motion.div>

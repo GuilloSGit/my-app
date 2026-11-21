@@ -86,7 +86,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning className={inter.variable}>
+    <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning className={inter.variable}>
       <body className={`${inter.className} min-h-screen`}>
         <ThemeProvider>
           <ServiceWorkerRegister />

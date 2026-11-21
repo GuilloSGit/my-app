@@ -25,7 +25,7 @@ const itemVariants = {
   visible: {
     y: 0,
     opacity: 1,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
@@ -182,7 +182,7 @@ function DashboardContent() {
           transition={{ delay: 0.5 }}
           className="mt-12 p-4 bg-slate-50 dark:bg-zinc-900/30 rounded-xl border border-slate-200 dark:border-zinc-800"
         >
-          <p className="text-sm text-slate-500 dark:text-zinc-400 text-center">
+          <div className="text-sm text-slate-500 dark:text-zinc-400 text-center">
             Las reuniones pasadas se eliminan automáticamente. Si necesitas los datos de una reunión anterior,{" "}
             <Tooltip
               content={
@@ -229,7 +229,7 @@ function DashboardContent() {
               </span>
             </Tooltip>
             .
-          </p>
+          </div>
         </motion.div>
       </div>
     </main>
