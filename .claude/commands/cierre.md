@@ -1,6 +1,6 @@
 # /cierre — Cierre de sesión de trabajo (congre-zoom, repo `my-app`)
 
-Checklist de cierre para **congre-zoom** (Congregación Media Agua — Next.js 14 +
+Checklist de cierre para **congre-zoom** (Congregación Media Agua — Next.js 16 +
 Supabase, deploy a GitHub Pages). Un solo repo, un solo push. Ejecutá todo en
 orden y reportá cada paso antes de pasar al siguiente.
 
@@ -94,7 +94,7 @@ la de cómo trabajar, `README.md` es la de setup/uso.
 **Regla: no se pushea sin verificar. Sin excepciones.**
 
 ```bash
-npm run lint          # ESLint
+npm run lint          # ESLint 9 (config plana, `eslint .`; `next lint` ya no existe)
 npm run build          # build de producción (output: export)
 npm run test:run       # Vitest — unitarios + integración + componentes
 npx tsc --noEmit       # Vitest no tipa: un mock desactualizado solo se ve acá (2026-09-19)

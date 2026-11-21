@@ -463,3 +463,12 @@ sección `## Tests`):
   credenciales de Zoom, etc.) va sin prefijo `NEXT_PUBLIC_` y, para lo que se
   está construyendo en la automatización de Zoom, vive como secret de
   Supabase Edge Functions, nunca como env var de Next.js.
+- **Zoom cambió su UI (2026-11-20):** en la vista de detalle de una reunión,
+  "Edit" pasó de `<a>` (role link) a `<button>`, y en la lista "Próximas" el
+  `a[href^="/s/<id>"]` ahora es el botón "Start" (el título está en
+  `.meeting-item .topic`). Síntoma: `drift-check` con «no se encontró el link
+  Edit». `editControl(page)` acepta botón o link con nombre ANCLADO (el
+  substring de `eitherName` matchea también "Edit global Dial-in…"). Verificado
+  contra la cuenta real sin guardar/borrar nada: formulario de Schedule
+  (todos los selectores) y diálogo de "Delete" (cerrado con Cancel). Siguen sin
+  probarse los clicks finales de "Save" (create) y "Delete" (cancel).
