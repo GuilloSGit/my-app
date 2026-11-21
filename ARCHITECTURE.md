@@ -470,5 +470,5 @@ sección `## Tests`):
   Edit». `editControl(page)` acepta botón o link con nombre ANCLADO (el
   substring de `eitherName` matchea también "Edit global Dial-in…"). Verificado
   contra la cuenta real sin guardar/borrar nada: formulario de Schedule
-  (todos los selectores) y diálogo de "Delete" (cerrado con Cancel). Siguen sin
-  probarse los clicks finales de "Save" (create) y "Delete" (cancel).
+  (todos los selectores) y diálogo de "Delete" (cerrado con Cancel). El 2026-11-21 se probó el ciclo
+  completo create ("Save") → cancel ("Delete") con una reunión de prueba: OK, sin restos.

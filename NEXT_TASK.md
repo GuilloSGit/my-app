@@ -16,7 +16,7 @@ COMPLETADO (2026-11-20):
 PRÓXIMAS PRIORIDADES:
 1. Vigilar la sesión de Zoom: si vuelve a vencer sin uso, investigar por qué el session-check programado corre solo ~2 veces al día (slots 10:20Z/10:30Z no aparecen) y no usar la sesión del CI en local (capturar una aparte para inspeccionar la UI).
 2. Confirmar que el deploy publicado anda en la PWA instalada (el service worker puede servir la versión vieja hasta recargar).
-3. Probar contra Zoom real los clicks finales de create ("Save") y cancel ("Delete") creando y borrando UNA reunión de prueba — pedir OK al usuario antes. Hay un TODO(codegen) en createMeeting.
+3. (Hecho 21/11) Ciclo create→cancel probado contra Zoom real con una reunión de prueba: OK. Falta solo `updateMeeting` (Save en edición) sin verificar con la UI nueva.
 4. La lista de Próximas pasó de 9 a 11 reuniones durante la sesión; no se investigó el origen (probable cron/reconcile). Confirmar que no hay duplicados.
 5. Pendientes viejos: redeploy de `exception-create` (cosmético, requiere OK); confirmar con el usuario la reunión del 24/10.
 6. Docs grandes (regla de documentación liviana): PROGRESS.md ~126 KB, ZOOM_AUTOMATION.md 55 KB, ARCHITECTURE.md ~30 KB, ROADMAP.md 22 KB, memoria project_my_app.md ~60 KB. Proponer compactarlos antes de reorganizar.

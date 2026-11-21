@@ -443,10 +443,8 @@ export class ZoomBrowserClient {
       await this.setAgenda(page, desired.agenda);
       await this.setPasscode(page);
 
-      // TODO(codegen): el botón de confirmar no quedó grabado (el codegen
-      // saltó directo a la URL resultante) — asumido "Save"/"Guardar" por
-      // analogía con el flujo de edición, que sí lo grabó. Verificar con
-      // ZOOM_HEADFUL=1 antes de confiar en el cron.
+      // "Save"/"Guardar" verificado 2026-11-21 contra la cuenta real (UI nueva
+      // de Zoom): create → join_url/passcode → cancel, sin dejar restos.
       await page.getByRole("button", { name: eitherName("Save", "Guardar") }).click();
       await page.waitForURL(/\/meeting\/\d+/, { timeout: 15_000 });
 
