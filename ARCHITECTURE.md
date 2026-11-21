@@ -471,4 +471,6 @@ sección `## Tests`):
   substring de `eitherName` matchea también "Edit global Dial-in…"). Verificado
   contra la cuenta real sin guardar/borrar nada: formulario de Schedule
   (todos los selectores) y diálogo de "Delete" (cerrado con Cancel). El 2026-11-21 se probó el ciclo
-  completo create ("Save") → cancel ("Delete") con una reunión de prueba: OK, sin restos.
+  completo create ("Save") → update ("Save" en edición; tema, fecha/hora y
+  duración releídos con readMeetingSummary) → cancel ("Delete") con una
+  reunión de prueba: OK, sin restos.
