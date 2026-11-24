@@ -14,11 +14,11 @@ COMPLETADO (2026-11-23):
 PRÓXIMAS PRIORIDADES:
 1. Ver si la sesión sobrevive con menos chequeos: `gh run list --workflow=zoom-session-check.yml` (próximos: jueves 26/11 00:20Z) y que no corran slots fuera de lun/jue. Si vence de nuevo sin uso, la hipótesis del uso frecuente se descarta.
 2. Llamada liviana diaria: DESCARTADA el 23/11 (GET con solo las cookies de la sesión vigente de la base → 302 a /signin en /meeting, /profile y zoom.us; probado con UA/headers de navegador). Si se quiere mantener viva la sesión sin Playwright habría que investigar otra vía; no es prioridad.
-3. Reunión del 24/10: en la base figura `synced` (zoom_meeting_id 83266603097) y el drift-check da 0 divergencias; solo falta que el usuario confirme que era la correcta.
-4. Docs grandes (PROGRESS.md ~126 KB, ZOOM_AUTOMATION.md 55 KB, ARCHITECTURE.md ~30 KB, ROADMAP.md 22 KB, memoria project_my_app.md ~60 KB): proponer compactarlos antes de reorganizar.
+3. Docs compactados el 23/11 (PROGRESS rotado a `docs/historial/`, índice en ZOOM_AUTOMATION.md, memoria con archivo). Sin pendientes de docs; `/cierre` corre los scripts. ARCHITECTURE (30 KB) y ROADMAP (22 KB) quedaron como están.
+4. Reunión del 24/10 (ya pasada): en la base figura `synced` como sábado normal (21:00Z, 120 min); si la visita del superintendente la afectó, ya no importa.
 
 CONTEXTO TÉCNICO:
-- No leer enteros los docs grandes: `grep -n '^## '` + `sed -n 'A,Bp'`. Cadena de crons: ZOOM_AUTOMATION.md → "Cadena de crons". Gotcha de la UI de Zoom: ARCHITECTURE.md → Gotchas conocidos.
+- No leer enteros los docs grandes: ZOOM_AUTOMATION.md tiene tabla índice (sección → línea); PROGRESS.md solo las últimas 10 entradas, el resto en `docs/historial/`. Cadena de crons: ZOOM_AUTOMATION.md → "Cadena de crons". Gotcha de la UI de Zoom: ARCHITECTURE.md → Gotchas conocidos.
 - Sesión local: `zoom-automation/.session/zoom-storage-state.json` (capturada 21/11); no usar la del CI en local. Cuenta jworg.zoom.us, UI en inglés.
 - Next 16: lint = `eslint .`. Playwright requiere `npx playwright install chromium`.
 - Antes de reintentar un `create` fallido: listMeetingIds()/check-session. Acciones irreversibles contra Zoom real y deploys: pedir confirmación.

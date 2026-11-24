@@ -1,5 +1,27 @@
 # Automatización de reuniones Zoom — spec y arquitectura
 
+<!-- INDICE-INICIO -->
+## Índice (usar `sed -n 'L,+60p'`; no leer el doc entero)
+
+| Sección | Línea |
+|---|---|
+| Contexto del dominio | 50 |
+| Principio rector | 63 |
+| Decisión de arquitectura: por qué no es Fastify + pg-boss | 75 |
+| Modelo de datos | 109 |
+| Integración con Zoom (Fase 2, todavía no implementada) | 212 |
+| Navegador automatizado (Playwright) — Fase 2-bis, reemplaza a la API REST | 295 |
+| Título derivado (implementado, Fase 1) | 461 |
+| Contenido desde wol.jw.org (parser implementado en Fase 1; enriquecimiento real es Fase 3) | 473 |
+| El reconciliador (implementado en Fase 1, lógica pura + adaptador real) | 510 |
+| Interfaz (Fase 4) — primer entregable cerrado 2026-09-13 | 594 |
+| Jobs (Fase 5) — `reconcile` implementado, deployado y verificado 2026-09-13 | 727 |
+| Preguntas que estaban abiertas — ya resueltas, no volver a preguntar | 860 |
+| Criterios de aceptación (del spec original, vigentes sin cambios) | 867 |
+| Tests mínimos (del spec original) | 882 |
+| Fase 2 — verificado contra el proyecto real (2026-09-12), luego PAUSADA | 891 |
+<!-- INDICE-FIN -->
+
 > Este es el documento de referencia ("por qué") de esta feature. `ROADMAP.md`
 > es el checklist de fases ("qué falta"), `PROGRESS.md` es la bitácora
 > cronológica ("qué se hizo y qué se encontró"). Leer los tres antes de tocar

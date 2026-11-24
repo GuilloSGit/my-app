@@ -152,3 +152,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Docs largos (no leerlos enteros)
+
+`PROGRESS.md` guarda solo las últimas 10 entradas (+ índice); lo anterior está en `docs/historial/AAAA-MM.md`. `ZOOM_AUTOMATION.md` (~55 KB) tiene una tabla índice sección → línea al principio: usar `sed -n 'L,+60p'`. Scripts: `scripts/rotar-progress.py` y `scripts/indexar-docs.py` (idempotentes, los corre `/cierre`).

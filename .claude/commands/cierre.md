@@ -87,6 +87,15 @@ Solo tocá las secciones donde algo realmente cambió. No dupliques contenido
 entre docs — `ARCHITECTURE.md` es la referencia de sistema, `AGENTS.md` es
 la de cómo trabajar, `README.md` es la de setup/uso.
 
+Rotación de docs (regla de documentación liviana, idempotente; correr siempre):
+
+```bash
+python3 scripts/rotar-progress.py      # PROGRESS.md: deja las últimas 10 entradas, el resto a docs/historial/AAAA-MM.md + índice
+python3 scripts/indexar-docs.py ZOOM_AUTOMATION.md   # refresca la tabla índice (sección → línea)
+```
+
+Memoria: `project_my_app.md` solo lo vigente (≲ 5k tokens); lo cerrado va a `project_my_app_archivo.md`.
+
 ---
 
 ## 4. Verificación obligatoria antes de pushear
