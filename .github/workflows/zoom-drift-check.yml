@@ -15,7 +15,7 @@ name: Zoom - drift-check
 
 on:
   schedule:
-    - cron: "30 0,10,20 * * *" # :30, después del chequeo de sesión (:20)
+    - cron: "30 0 * * 1" # lunes 00:30Z, después del chequeo de sesión (:20); semanal desde 2026-11-23
   workflow_dispatch: {}
 
 concurrency:

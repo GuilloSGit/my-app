@@ -18,7 +18,7 @@ name: Zoom - verificar sesión
 
 on:
   schedule:
-    - cron: "20 0,10,20 * * *" # :20 después del reconcile (:00) y su apply
+    - cron: "20 0 * * 1,4" # lunes y jueves 00:20Z, después del reconcile (:00); 2 por semana desde 2026-11-23
   workflow_dispatch: {}
 
 concurrency:
