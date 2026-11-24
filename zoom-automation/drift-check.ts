@@ -8,7 +8,7 @@ import { newIssues } from "./lib/drift-diff";
 // drift-check (Fase 5, último ítem pendiente del roadmap): compara la
 // cuenta real de Zoom contra meeting_occurrences y reporta divergencias,
 // nunca corrige nada solo. Corre vía
-// .github/workflows/zoom-drift-check.yml (cron cada 10hs + a demanda desde
+// .github/workflows/zoom-drift-check.yml (cron semanal, lunes, desde 2026-11-23, + a demanda desde
 // el botón "Chequear divergencias ahora" de /dashboard/automatizacion).
 // Ver el plan de implementación para el detalle de las decisiones
 // tomadas con el usuario (alcance, aviso por email, etc.).

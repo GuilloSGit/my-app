@@ -1,5 +1,5 @@
-// drift-check corre cada 10hs (2026-09-19): sin esto, una divergencia que
-// sigue sin arreglar mandaría un mail idéntico 3 veces por día. Se avisa
+// drift-check corría cada 10hs (2026-09-19; semanal desde 2026-11-23): sin esto, una divergencia que
+// sigue sin arreglar mandaría un mail idéntico en cada corrida. Se avisa
 // solo por las divergencias que NO estaban en la corrida anterior; todas
 // quedan igual guardadas en drift_check_runs y visibles en el panel.
 // La clave incluye `detail`: si un mismatch cambia (ej. otra hora real),

@@ -717,7 +717,7 @@ usuario:
 |---|---|---|---|
 | `reconcile` | Supabase (pg_cron) | cada 2 días (no diario) | escaneo de 1 mes, encola create/update/cancel en `zoom_outbox` (el `update` cubre el caso de "agenda que cambió", ver Fase 3) — **activado 2026-09-13**, `cron.schedule('reconcile-every-2-days', ...)`, migración `20260913150000_reconcile_cron.sql` |
 | `zoom-apply-browser` | GitHub Actions | **sin cron propio** | drena el outbox manejando el navegador |
-| `drift-check` | GitHub Actions (no pg_cron — Playwright no corre en Deno) | cada 10hs (`cron: "30 0,10,20 * * *"`, encadenado tras reconcile — ver "Cadena de crons") + botón "Chequear divergencias ahora" | reporta divergencias Zoom real vs. DB, nunca corrige — **implementado 2026-09-17, verificado 2026-09-19** |
+| `drift-check` | GitHub Actions (no pg_cron — Playwright no corre en Deno) | semanal desde 2026-11-23 (`cron: "30 0 * * 1"`, lunes, tras el reconcile de las :00 — ver "Cadena de crons") + botón "Chequear divergencias ahora" | reporta divergencias Zoom real vs. DB, nunca corrige — **implementado 2026-09-17, verificado 2026-09-19** |
 
 **Sin `wol-enrich` como job aparte** (revisado 2026-09-12, ver "Contenido
 desde wol.jw.org" arriba): el propio `reconcile` ya retoma `wol_unreachable`
@@ -886,14 +886,14 @@ Antes cada corrida de CI restauraba la MISMA captura desde los secrets `ZOOM_SES
 - **Verificado 2026-09-27**: la tabla nunca se había sembrado de verdad hasta esa fecha (`zoom_session_state` seguía vacía 6 días después de crearse) — no por un bug de sesión, sino porque **`reconcile` venía devolviendo 401 en cada corrida de `pg_cron` desde el 17/9**, sin excepción, sin que nada lo mostrara: el token compartido `RECONCILE_INTERNAL_TOKEN` (Supabase secret) y `reconcile_internal_token` (Vault, el que arma el `Authorization` del cron) habían quedado desincronizados. `reconcile_runs` no tenía filas nuevas desde el 17/9 pese a que `cron.job_run_details` mostraba la corrida disparándose puntual cada 10hs — la pista real estuvo en `net._http_response` (`status_code: 401`, `{"error":"unauthorized"}`), no en ninguna tabla de la app. **Fix**: rotar ambos al mismo valor nuevo (`supabase secrets set` + `select vault.update_secret(id, nuevo_valor)`). Una vez sincronizados, `reconcile` disparado a mano generó ocurrencias nuevas al toque y recién ahí `zoom:upload-session` sembró la tabla por primera vez. **Si vuelve a haber un período largo sin ocurrencias nuevas pese a que `pg_cron` está activo, chequear `net._http_response` antes que la sesión de Zoom** — esa tabla solo guarda las respuestas más recientes (se purga sola), así que hay que mirarla poco después de una corrida.
 - **Sin verificar todavía**: que la sesión, ya sembrada de verdad, dure días en vez de horas.
 
-### Cadena de crons (cada 10hs, desde 2026-09-19)
+### Cadena de crons (cada 10hs desde 2026-09-19; desde 2026-11-23 session-check lun/jue y drift-check lun)
 
 Todo gratis: el repo es público (minutos de GitHub Actions ilimitados) y `pg_cron` es parte del free tier de Supabase. Corren encadenados, nunca a la vez — las tres automatizaciones comparten UNA sesión de Zoom, y un drift-check corrido mientras `reconcile` todavía aplica cambios compararía contra un estado a medias (falsas divergencias):
 
 | Minuto (00/10/20 UTC = 21/07/17 hora local) | Qué | Dónde |
 |---|---|---|
 | :00 | `reconcile` → al terminar dispara `zoom-apply-browser` | pg_cron (Supabase) |
-| :20 | `zoom-session-check` (constancia + mail si falla) | GitHub Actions |
-| :30 | `zoom-drift-check` (mail solo por divergencias **nuevas**, ver `lib/drift-diff.ts`) | GitHub Actions |
+| :20 | `zoom-session-check` (constancia + mail si falla) — desde 2026-11-23 solo lunes y jueves (`20 0 * * 1,4`) | GitHub Actions |
+| :30 | `zoom-drift-check` — desde 2026-11-23 solo lunes (`30 0 * * 1`) (mail solo por divergencias **nuevas**, ver `lib/drift-diff.ts`) | GitHub Actions |
 
 Los tres workflows comparten `concurrency: group: zoom-account` (`cancel-in-progress: false`): si GitHub demora un cron (pasa, es best-effort), se encolan en vez de pisarse. Mientras `reconcile`/apply corren cada 10hs, ya hacen de "wake-up call" de la sesión — pero no está garantizado que eso evite el vencimiento (hasta 2026-09-21 el CI descartaba las cookies renovadas al terminar; ver "Dónde vive la sesión"); la constancia del chequeo de sesión va a mostrar cuánto dura realmente.

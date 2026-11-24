@@ -1664,3 +1664,9 @@ Arrancó por un mail de GitHub Actions: `zoom-drift-check` fallando ("sesión ve
 - **2026-11-21:** la sesión de Zoom volvió a vencer ~17 h después de la captura (CI y copia local); causa no confirmada (¿uso local simultáneo con el CI?, ¿el session-check de las 10:20Z no corre?). Recapturada y subida por el usuario; drift-check manual: 0 divergencias, session-check de las 16:33Z OK tras las pruebas locales.
 - **2026-11-21:** migración a Next 16 revisada a ojo por el usuario, mergeada a `master` (`56ec03b`) y desplegada; rama borrada.
 - **2026-11-21:** ciclo completo contra Zoom real con UI nueva, con reuniones de prueba creadas y canceladas al instante (sin restos; lista de Próximas 11 antes y después): create ("Save"), update (tema/fecha/duración releídos con readMeetingSummary) y cancel ("Delete"). Scripts de prueba solo en el scratchpad, no en el repo.
+
+## 2026-11-23 — Menos chequeos con navegador (hipótesis: el uso frecuente vence la sesión)
+
+- `zoom-drift-check` pasó a 1 vez por semana (`30 0 * * 1`) y `zoom-session-check` a 2 (`20 0 * * 1,4`); reconcile/apply siguen cada 10hs. Commit `299b735`. Comentarios y docs (ARCHITECTURE, ZOOM_AUTOMATION) actualizados.
+- Idea pendiente: "llamada liviana diaria" con las cookies guardadas (GET sin navegador). Prueba local: `GET jworg.zoom.us/meeting` con las cookies de la copia local (capturada el 21/11) → 302 a /signin. Inconcluso: no se sabe si la copia venció o si Zoom exige más que cookies (cf_clearance atado a UA/IP). Hay que probarla con la sesión vigente del CI.
+- A mirar el 24-26/11: que no haya corridas programadas nuevas fuera de lun/jue, y si la sesión sigue viva.
